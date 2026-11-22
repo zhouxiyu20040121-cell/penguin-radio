@@ -1,0 +1,1934 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#EAF3FF">
+<title>十上无难事·点歌台</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap">
+<style>
+:root{
+  --ink:#14213D;
+  --ink-2:#4A5875;
+  --ink-3:#8C99B4;
+  --paper:#FFFFFF;
+  --ice:#EAF3FF;
+  --ice-2:#DCEBFF;
+  --red:#F0655B;
+  --mint:#6FD9BE;
+  --line:rgba(20,33,61,.08);
+  --shadow:0 10px 30px -12px rgba(20,33,61,.28);
+  --radius:22px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{
+  background:
+    radial-gradient(1200px 600px at 80% -10%, #FFFFFF 0%, rgba(255,255,255,0) 60%),
+    radial-gradient(900px 500px at -10% 20%, #DDEBFF 0%, rgba(221,235,255,0) 55%),
+    linear-gradient(180deg,#EAF3FF 0%,#F6FAFF 45%,#FDFEFF 100%);
+  background-attachment:fixed;
+  color:var(--ink);
+  font-family:"Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  overscroll-behavior-y:contain;
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    radial-gradient(2px 2px at 12% 18%, rgba(255,255,255,.9), transparent 60%),
+    radial-gradient(3px 3px at 78% 12%, rgba(255,255,255,.85), transparent 60%),
+    radial-gradient(2px 2px at 64% 46%, rgba(255,255,255,.75), transparent 60%),
+    radial-gradient(2px 2px at 22% 68%, rgba(255,255,255,.7), transparent 60%),
+    radial-gradient(3px 3px at 88% 74%, rgba(255,255,255,.8), transparent 60%),
+    radial-gradient(2px 2px at 42% 88%, rgba(255,255,255,.6), transparent 60%);
+  animation:snowdrift 18s linear infinite alternate;
+}
+@keyframes snowdrift{from{transform:translateY(-6px)}to{transform:translateY(10px)}}
+
+.app{
+  position:relative;z-index:1;
+  max-width:480px;margin:0 auto;min-height:100%;
+  padding:0 18px calc(150px + env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;
+}
+
+/* ===== 顶栏 ===== */
+.topbar{display:flex;align-items:center;gap:10px;padding:22px 2px 6px}
+.logo{
+  width:46px;height:46px;border-radius:15px;background:#fff;
+  display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);
+  flex:none;
+}
+.logo img{width:40px;height:40px;object-fit:contain}
+.brand h1{margin:0;font-size:17px;font-weight:900;letter-spacing:.5px}
+.brand p{margin:2px 0 0;font-size:11px;color:var(--ink-3);letter-spacing:.3px}
+.today-pill{
+  margin-left:auto;flex:none;background:#fff;border-radius:999px;padding:7px 12px;
+  font-size:11px;color:var(--ink-2);box-shadow:0 4px 14px -8px rgba(20,33,61,.4);
+  display:flex;align-items:center;gap:6px;
+}
+.today-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--mint);box-shadow:0 0 0 3px rgba(111,217,190,.2)}
+
+/* ===== 通用 ===== */
+.card{background:var(--paper);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--line)}
+.section-title{display:flex;align-items:baseline;gap:8px;margin:22px 2px 12px}
+.section-title h2{margin:0;font-size:15px;font-weight:700}
+.section-title span{font-size:11px;color:var(--ink-3)}
+.empty{
+  text-align:center;padding:34px 20px;color:var(--ink-3);font-size:13px;line-height:1.9;
+}
+.empty img{width:110px;height:110px;object-fit:contain;opacity:.95;margin-bottom:6px}
+.howto{
+  margin-top:20px;background:rgba(255,255,255,.78);backdrop-filter:blur(6px);
+  border:1px solid var(--line);border-radius:20px;padding:16px 16px 4px;
+}
+.howto h3{margin:0 0 13px;font-size:12px;font-weight:700;letter-spacing:1px;color:var(--ink-2)}
+.howto .row{display:flex;align-items:flex-start;gap:10px;padding-bottom:13px}
+.howto .num{
+  width:20px;height:20px;border-radius:50%;background:#EAF3FF;color:var(--ink-2);
+  font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;
+}
+.howto .row b{font-size:12.5px;display:block;line-height:1.4}
+.howto .row p{margin:3px 0 0;font-size:11px;color:var(--ink-3);line-height:1.65}
+.tip{margin:14px 4px 0;text-align:center;font-size:10.5px;color:#A3AFC6;line-height:1.7}
+.btn{
+  border:0;font:inherit;cursor:pointer;border-radius:16px;
+  padding:15px 20px;font-size:15px;font-weight:700;letter-spacing:.6px;
+  transition:transform .18s ease,box-shadow .18s ease,opacity .18s;
+}
+.btn:active{transform:scale(.975)}
+.btn.primary{
+  width:100%;color:#fff;
+  background:linear-gradient(135deg,#26355C 0%,#14213D 70%);
+  box-shadow:0 14px 26px -14px rgba(20,33,61,.9);
+}
+.btn.primary:disabled{opacity:.4;box-shadow:none;cursor:not-allowed}
+.btn.ghost{
+  width:100%;background:#fff;color:var(--ink-2);border:1px solid var(--line);
+  box-shadow:0 6px 18px -14px rgba(20,33,61,.5);font-weight:500;
+}
+.btn.red{width:100%;color:#fff;background:linear-gradient(135deg,#FF8377,#E9503F);box-shadow:0 14px 26px -14px rgba(233,80,63,.9)}
+
+/* ===== 视图 ===== */
+main{flex:1}
+.view{display:none;animation:rise .35s cubic-bezier(.22,.9,.3,1) both}
+.view.active{display:block}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* ===== 唱片卡 ===== */
+.track{
+  display:flex;gap:13px;padding:15px;margin-bottom:11px;
+  background:var(--paper);border-radius:18px;border:1px solid var(--line);
+  box-shadow:0 10px 26px -20px rgba(20,33,61,.6);
+  transition:transform .2s ease,box-shadow .2s;
+}
+.track:active{transform:scale(.99)}
+.avatar-wrap{
+  width:52px;height:52px;border-radius:16px;flex:none;
+  background:linear-gradient(160deg,#F4F9FF,#E4F0FF);
+  display:flex;align-items:center;justify-content:center;
+}
+.avatar-wrap img{width:44px;height:44px;object-fit:contain}
+.tbody{flex:1;min-width:0}
+.tmeta{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink-3)}
+.tmeta b{color:var(--ink);font-size:12.5px;font-weight:700}
+.tmsg{
+  margin:7px 0 9px;font-size:14px;line-height:1.55;color:var(--ink-2);
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+}
+.tbar{
+  display:flex;align-items:center;gap:9px;
+  background:#F5F9FF;border-radius:12px;padding:8px 10px;
+}
+.play-dot{
+  width:26px;height:26px;border-radius:50%;flex:none;border:0;cursor:pointer;
+  background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;
+}
+.play-dot:disabled{background:#C6D2E6;cursor:not-allowed}
+.play-dot svg{width:12px;height:12px}
+.song-name{font-size:12.5px;color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.song-dur{font-size:11px;color:var(--ink-3);flex:none;font-variant-numeric:tabular-nums}
+
+/* ===== 上传 ===== */
+.uploader{
+  background:var(--paper);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);
+  border:1px solid var(--line);
+}
+.dropzone{
+  border:1.5px dashed #C7D8F0;border-radius:18px;background:#F7FBFF;
+  padding:26px 18px;text-align:center;cursor:pointer;transition:.2s;
+}
+.dropzone:active,.dropzone.over{background:#EFF6FF;border-color:#9EBEE8}
+.qzbox{margin-bottom:16px}
+.qzbox .qrow{display:flex;gap:9px;align-items:center}
+.qzbox input{
+  flex:1;min-width:0;border:0;outline:0;font:inherit;font-size:14px;
+  padding:13px 16px;border-radius:14px;background:#F3F8FF;color:var(--ink);
+}
+.qzbox input::placeholder{color:#9AA9C2}
+.qzbox .qrow button{
+  flex:none;border:0;cursor:pointer;font:inherit;font-size:13.5px;font-weight:700;color:#fff;
+  background:#26355C;padding:13px 18px;border-radius:14px;
+}
+.qzbox p{margin:9px 2px 0;font-size:11px;line-height:1.7;color:var(--ink-3)}
+.dropzone .ic{
+  width:46px;height:46px;margin:0 auto 10px;border-radius:14px;background:#fff;
+  box-shadow:0 8px 20px -14px rgba(20,33,61,.8);display:flex;align-items:center;justify-content:center;
+}
+.dropzone h3{margin:0;font-size:14px;font-weight:700}
+.dropzone p{margin:6px 0 0;font-size:11.5px;color:var(--ink-3);line-height:1.7}
+#file{display:none}
+.picked{
+  display:none;margin-top:12px;padding:12px;border-radius:14px;background:#F2F8FF;
+  align-items:center;gap:10px;font-size:12px;
+}
+.picked.show{display:flex}
+.picked .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.picked .sz{color:var(--ink-3);flex:none;font-variant-numeric:tabular-nums}
+.picked .rm{border:0;background:none;color:var(--red);font-size:12px;cursor:pointer;padding:4px}
+
+.field{margin-top:18px}
+.field label{display:flex;align-items:baseline;gap:6px;font-size:12.5px;font-weight:700;margin-bottom:8px}
+.field label em{font-style:normal;font-size:10.5px;color:var(--ink-3);font-weight:400}
+.input,.textarea{
+  width:100%;border:1px solid var(--line);background:#FAFCFF;border-radius:14px;
+  padding:13px 14px;font:inherit;font-size:14px;color:var(--ink);outline:none;
+  transition:border-color .2s,background .2s;
+}
+.input:focus,.textarea:focus{border-color:#9EBEE8;background:#fff}
+.textarea{resize:none;min-height:88px;line-height:1.6}
+.count{text-align:right;font-size:10.5px;color:var(--ink-3);margin-top:5px}
+
+.avatars{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.avatar-opt{
+  position:relative;border:1.5px solid transparent;border-radius:16px;background:#F7FBFF;
+  padding:10px 4px 8px;text-align:center;cursor:pointer;transition:.18s;
+}
+.avatar-opt img{width:54px;height:54px;object-fit:contain;display:block;margin:0 auto}
+.avatar-opt span{display:block;font-size:10.5px;color:var(--ink-3);margin-top:4px;line-height:1.2}
+.avatar-opt.sel{border-color:var(--ink);background:#fff;box-shadow:0 10px 22px -18px rgba(20,33,61,.9)}
+.avatar-opt.sel span{color:var(--ink)}
+.avatar-opt .tick{
+  position:absolute;top:6px;right:6px;width:16px;height:16px;border-radius:50%;
+  background:var(--ink);color:#fff;font-size:9px;display:none;align-items:center;justify-content:center;
+}
+.avatar-opt.sel .tick{display:flex}
+
+/* ===== 抽取 ===== */
+.draw-wrap{background:var(--paper);border-radius:28px;padding:26px 20px 22px;box-shadow:var(--shadow);border:1px solid var(--line);text-align:center}
+.disc-stage{position:relative;height:262px;display:flex;align-items:center;justify-content:center}
+.disc{
+  position:relative;width:222px;height:222px;border-radius:50%;
+  background:
+    repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,.10) 0 2px, rgba(255,255,255,0) 2px 7px),
+    radial-gradient(circle at 50% 50%, #2A3A61 0%, #17233F 58%, #0D1526 100%);
+  box-shadow:0 22px 44px -26px rgba(13,21,38,.95), inset 0 0 0 6px rgba(255,255,255,.04);
+  display:flex;align-items:center;justify-content:center;
+  transition:transform 1s cubic-bezier(.16,.9,.2,1);
+}
+.disc::after{
+  content:"";position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(from 210deg, rgba(255,255,255,.22), transparent 22%, transparent 48%, rgba(255,255,255,.16) 62%, transparent 80%);
+  opacity:.6;pointer-events:none;
+}
+.disc .label{
+  width:118px;height:118px;border-radius:50%;background:radial-gradient(circle at 45% 35%,#FBF8FF,#E7E3F6);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:inset 0 0 0 4px rgba(20,33,61,.12);
+}
+.disc .label img{width:92px;height:92px;object-fit:contain}
+.needle{
+  position:absolute;right:6px;top:8px;width:10px;height:124px;transform-origin:top center;
+  background:linear-gradient(180deg,#566A93,#26355C);border-radius:6px;
+  transform:rotate(16deg);transition:transform .9s cubic-bezier(.3,.9,.3,1);z-index:3;
+}
+.needle::after{content:"";position:absolute;left:50%;top:0;width:26px;height:26px;margin-left:-13px;border-radius:50%;background:#26355C}
+.needle.arm{transform:rotate(34deg)}
+.draw-title{font-size:20px;font-weight:900;margin:16px 0 4px;letter-spacing:.5px}
+.draw-sub{font-size:12px;color:var(--ink-3);margin:0 0 18px}
+.result{display:none;margin-top:6px;animation:rise .45s both}
+.result.show{display:block}
+.quote-card{
+  background:linear-gradient(160deg,#FFF8F6,#FFFFFF);border:1px solid rgba(240,101,91,.16);
+  border-radius:22px;padding:20px 18px;text-align:left;position:relative;overflow:hidden;
+}
+.quote-card::before{content:"“";position:absolute;right:14px;top:2px;font-size:64px;color:rgba(240,101,91,.12);font-family:Georgia,serif;line-height:1}
+.q-from{display:flex;align-items:center;gap:9px;margin-bottom:12px}
+.q-from .avatar-wrap{width:38px;height:38px;border-radius:12px}
+.q-from .avatar-wrap img{width:32px;height:32px}
+.q-from b{font-size:13px}
+.q-from span{font-size:10.5px;color:var(--ink-3)}
+.q-text{font-size:17px;line-height:1.7;font-weight:500;color:var(--ink);margin:0 0 14px}
+.q-song{display:flex;align-items:center;gap:9px;background:#fff;border-radius:12px;padding:9px 10px;border:1px solid var(--line)}
+.again-row{display:flex;gap:10px;margin-top:14px}
+.again-row .btn{flex:1}
+
+/* ===== 我的 ===== */
+.me-head{
+  background:linear-gradient(150deg,#22305A,#14213D 60%,#0E1830);
+  color:#fff;border-radius:26px;padding:22px;display:flex;align-items:center;gap:16px;
+  box-shadow:0 20px 40px -26px rgba(20,33,61,.95);position:relative;overflow:hidden;
+}
+.me-head::after{content:"";position:absolute;right:-30px;top:-40px;width:140px;height:140px;border-radius:50%;background:radial-gradient(circle,rgba(111,217,190,.22),transparent 70%)}
+.me-head .big{width:70px;height:70px;border-radius:22px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;flex:none;backdrop-filter:blur(2px)}
+.me-head .big img{width:58px;height:58px;object-fit:contain}
+.me-head h2{margin:0;font-size:17px;font-weight:900}
+.me-head p{margin:5px 0 0;font-size:11.5px;color:rgba(255,255,255,.62)}
+.me-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+.stat{background:#fff;border-radius:16px;padding:13px 10px;text-align:center;border:1px solid var(--line);box-shadow:0 8px 20px -18px rgba(20,33,61,.8)}
+.stat b{display:block;font-size:19px;font-weight:900;font-variant-numeric:tabular-nums}
+.stat span{font-size:10.5px;color:var(--ink-3)}
+
+/* ===== 播放器 ===== */
+.player{
+  position:fixed;left:50%;transform:translate(-50%,140%);bottom:calc(84px + env(safe-area-inset-bottom));
+  width:calc(100% - 36px);max-width:444px;z-index:30;
+  background:rgba(20,33,61,.94);backdrop-filter:blur(14px);color:#fff;
+  border-radius:18px;padding:11px 13px;box-shadow:0 18px 34px -16px rgba(0,0,0,.6);
+  transition:transform .35s cubic-bezier(.2,.9,.3,1);display:flex;align-items:center;gap:11px;
+}
+.player.show{transform:translate(-50%,0)}
+.player .pic{width:36px;height:36px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+.player .pic img{width:30px;height:30px;object-fit:contain}
+.pinfo{flex:1;min-width:0}
+.pinfo b{display:block;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pinfo span{font-size:10.5px;color:rgba(255,255,255,.55);display:block;margin-top:1px}
+.progress{height:3px;border-radius:3px;background:rgba(255,255,255,.18);margin-top:6px;overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--mint);border-radius:3px;transition:width .2s linear}
+.pbtn{width:36px;height:36px;border-radius:50%;border:0;background:#fff;color:var(--ink);display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer}
+.pbtn svg{width:13px;height:13px}
+
+/* ===== 底栏 ===== */
+.tabbar{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom));
+  width:calc(100% - 36px);max-width:444px;z-index:31;
+  background:rgba(255,255,255,.9);backdrop-filter:blur(16px);
+  border-radius:22px;box-shadow:0 14px 34px -16px rgba(20,33,61,.5);border:1px solid var(--line);
+  display:grid;grid-template-columns:repeat(5,1fr);padding:8px 4px;
+}
+.tab{
+  border:0;background:none;cursor:pointer;padding:7px 2px 6px;border-radius:14px;
+  display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--ink-3);font:inherit;
+  transition:.2s;
+}
+.tab svg{width:19px;height:19px;opacity:.55;transition:.2s}
+.tab span{font-size:10.5px;letter-spacing:.5px}
+.tab.on{color:var(--ink);background:#F1F6FF}
+.tab.on svg{opacity:1}
+
+/* ===== 搜索 ===== */
+.searchbar{display:flex;gap:9px;margin-bottom:13px}
+.searchbar input{
+  flex:1;min-width:0;border:1px solid var(--line);background:#fff;border-radius:14px;
+  padding:13px 14px;font:inherit;font-size:14px;color:var(--ink);outline:none;
+  box-shadow:0 8px 20px -20px rgba(20,33,61,.8);
+}
+.searchbar input:focus{border-color:#9EBEE8}
+.searchbar button{
+  border:0;padding:0 18px;border-radius:14px;flex:none;cursor:pointer;font-family:inherit;
+  background:linear-gradient(135deg,#26355C,#14213D);color:#fff;font-size:13.5px;font-weight:700;
+}
+.searchbar button:active{transform:scale(.97)}
+.hots{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px}
+.chip{
+  border:1px solid var(--line);background:rgba(255,255,255,.82);border-radius:999px;
+  padding:7px 13px;font-size:12px;color:var(--ink-2);cursor:pointer;font-family:inherit;
+}
+.chip:active{background:#fff}
+.sstate{text-align:center;font-size:12.5px;color:var(--ink-3);line-height:1.9;padding:20px 8px}
+.sstate a{color:#2E6BE6;text-decoration:none}
+.sres{
+  display:flex;gap:12px;align-items:center;padding:12px;margin-bottom:10px;
+  background:#fff;border-radius:18px;border:1px solid var(--line);
+  box-shadow:0 10px 26px -22px rgba(20,33,61,.8);
+}
+.cov{width:56px;height:56px;border-radius:12px;object-fit:cover;flex:none;background:#EAF3FF}
+.sinfo{flex:1;min-width:0}
+.sinfo b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sinfo p{margin:3px 0 8px;font-size:11px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sacts{display:flex;gap:6px;flex-wrap:wrap}
+.mini{
+  border:1px solid var(--line);background:#F6FAFF;border-radius:9px;padding:5px 9px;
+  font-size:10.5px;color:var(--ink-2);cursor:pointer;text-decoration:none;
+  display:inline-flex;align-items:center;gap:4px;font-family:inherit;line-height:1.4;
+}
+.mini.dark{background:var(--ink);color:#fff;border-color:var(--ink)}
+.plinks{margin-top:7px;font-size:10.5px;color:var(--ink-3);display:flex;flex-wrap:wrap;align-items:center;gap:9px}
+.plinks a{color:#2E6BE6;text-decoration:none}
+.plinks a:active{opacity:.6}
+.mini:active{opacity:.7}
+.chosen{display:none;align-items:center;gap:11px;padding:12px;border-radius:16px;background:#F3F8FF;margin-bottom:12px;border:1px solid var(--line)}
+.chosen.show{display:flex}
+.chosen img{width:48px;height:48px;border-radius:10px;object-fit:cover;flex:none;background:#E4F0FF}
+.chosen .ci{flex:1;min-width:0}
+.chosen .ci b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chosen .ci span{font-size:11px;color:var(--ink-3)}
+.chosen .chg{border:0;background:none;color:var(--red);font-size:11.5px;cursor:pointer;flex:none;font-family:inherit;padding:4px}
+.cov-s{width:22px;height:22px;border-radius:6px;object-fit:cover;flex:none;background:#EAF3FF}
+.altline{margin-top:16px;text-align:center;font-size:13px;color:var(--ink-3);letter-spacing:.2px}
+.altline span{color:#2E6BE6;cursor:pointer;font-weight:700;margin-left:6px;font-size:14px}
+
+/* ===== toast ===== */
+.toast{
+  position:fixed;left:50%;top:78px;transform:translate(-50%,-14px);
+  background:rgba(20,33,61,.92);color:#fff;font-size:12.5px;padding:10px 16px;border-radius:12px;
+  opacity:0;pointer-events:none;transition:.3s;z-index:50;max-width:80%;text-align:center;line-height:1.5;
+}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* ============================================================
+   视觉升级：极光冰川
+   ============================================================ */
+body{
+  background:
+    radial-gradient(760px 460px at 16% -8%, #CBE6FF 0%, rgba(203,230,255,0) 64%),
+    radial-gradient(660px 420px at 92% 0%, #DCCFF8 0%, rgba(220,207,248,0) 60%),
+    radial-gradient(560px 380px at 50% 46%, #DDF6EE 0%, rgba(221,246,238,0) 62%),
+    linear-gradient(180deg,#F1F7FF 0%,#FBFBFF 40%,#FFFFFF 100%);
+}
+body::after{
+  content:"";position:fixed;right:-90px;top:26%;width:300px;height:300px;border-radius:50%;
+  background:radial-gradient(circle,rgba(155,124,255,.20),rgba(155,124,255,0) 68%);
+  filter:blur(6px);pointer-events:none;z-index:0;animation:floaty 12s ease-in-out infinite alternate;
+}
+@keyframes floaty{from{transform:translateY(-14px)}to{transform:translateY(18px)}}
+
+.brand h1{font-size:16.5px;letter-spacing:.8px}
+.brand p{font-size:10.5px;letter-spacing:.4px}
+
+/* 首页主视觉 */
+.hero{
+  position:relative;overflow:hidden;border-radius:26px;margin-top:8px;
+  padding:22px 20px 22px;color:#fff;
+  background:linear-gradient(155deg,#22335A 0%,#15223F 44%,#0C1730 100%);
+  box-shadow:0 28px 52px -32px rgba(13,24,48,.95),inset 0 0 0 1px rgba(255,255,255,.06);
+}
+.hero .aurora{
+  position:absolute;left:-15%;right:-15%;top:-60%;height:200%;
+  background:
+    radial-gradient(38% 34% at 22% 44%, rgba(111,217,190,.42), transparent 72%),
+    radial-gradient(34% 30% at 78% 30%, rgba(155,124,255,.42), transparent 72%),
+    radial-gradient(30% 26% at 58% 78%, rgba(96,158,255,.34), transparent 72%);
+  filter:blur(10px);pointer-events:none;
+  animation:auroraShift 14s ease-in-out infinite alternate;
+}
+@keyframes auroraShift{from{transform:translate3d(-8px,-6px,0) scale(1)}to{transform:translate3d(10px,8px,0) scale(1.06)}}
+.hero .tag{
+  position:relative;display:inline-flex;align-items:center;gap:7px;
+  font-size:10px;letter-spacing:2px;color:rgba(255,255,255,.55);
+}
+.hero .tag i{width:5px;height:5px;border-radius:50%;background:#7FE0C4;box-shadow:0 0 0 3px rgba(127,224,196,.22)}
+.hero h2{
+  position:relative;margin:12px 0 0;font-size:24px;line-height:1.42;font-weight:900;letter-spacing:.6px;
+}
+.hero h2 em{
+  font-style:normal;background:linear-gradient(92deg,#8FEFD4 0%,#A9C4FF 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.hero p{
+  position:relative;margin:11px 0 0;font-size:11.5px;line-height:1.85;color:rgba(255,255,255,.70);max-width:268px;
+}
+.hero .cta{position:relative;display:flex;gap:9px;margin-top:18px}
+.hero .cta button{
+  border:0;font-family:inherit;cursor:pointer;border-radius:14px;padding:12px 19px;
+  font-size:13px;font-weight:700;letter-spacing:.4px;background:#fff;color:var(--ink);
+  box-shadow:0 12px 26px -16px rgba(0,0,0,.8);transition:transform .2s;
+}
+.hero .cta button:active{transform:scale(.97)}
+.hero .cta .ghostbtn{background:rgba(255,255,255,.10);color:rgba(255,255,255,.9);box-shadow:none;border:1px solid rgba(255,255,255,.20);font-weight:500}
+.hero .art{position:absolute;right:-6px;bottom:-6px;width:142px;height:142px;pointer-events:none}
+.hero .art img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 14px 22px rgba(0,0,0,.45))}
+
+/* 心情胶囊 */
+.moods{display:flex;gap:8px;overflow-x:auto;padding:3px 2px 5px;margin:16px -2px 2px;scrollbar-width:none}
+.moods::-webkit-scrollbar{display:none}
+.moods.wrap{flex-wrap:wrap;overflow:visible;margin:0;padding:0}
+.mood{
+  flex:none;border:1px solid var(--line);background:rgba(255,255,255,.92);border-radius:999px;
+  padding:8px 13px;font-size:11.5px;color:var(--ink-2);cursor:pointer;font-family:inherit;
+  display:inline-flex;align-items:center;gap:6px;transition:.22s;white-space:nowrap;
+}
+.mood .d{width:6px;height:6px;border-radius:50%;flex:none}
+.mood:active{transform:scale(.97)}
+.mood.on{background:var(--ink);color:#fff;border-color:var(--ink);box-shadow:0 12px 24px -18px rgba(20,33,61,.95)}
+.mood.on .d{box-shadow:0 0 0 3px rgba(255,255,255,.16)}
+
+/* 曲目卡升级 */
+.track{position:relative;overflow:hidden;border-radius:20px;background:rgba(255,255,255,.96)}
+.track::before{
+  content:"";position:absolute;left:0;top:16px;bottom:16px;width:3px;border-radius:0 3px 3px 0;
+  background:var(--accent,#DCE6F5);
+}
+.mood-pill{
+  display:inline-flex;align-items:center;gap:4px;font-size:9.5px;padding:2px 7px;border-radius:999px;
+  background:#F3F8FF;color:var(--ink-2);line-height:1.5;
+}
+.mood-pill .d{width:5px;height:5px;border-radius:50%;flex:none}
+
+/* 形象墙 24 只 */
+.avatars{grid-template-columns:repeat(4,1fr);gap:8px}
+.avatar-opt{padding:9px 3px 7px;border-radius:14px}
+.avatar-opt img{width:46px;height:46px}
+.avatar-opt span{font-size:9.5px;margin-top:3px;letter-spacing:0}
+.avatar-opt .tick{width:14px;height:14px;top:5px;right:5px}
+.avatar-opt .tick svg{width:8px;height:8px}
+
+/* 按钮与底栏微调 */
+.btn.primary{background:linear-gradient(135deg,#2C3C63 0%,#14213D 62%,#0B1630 100%)}
+.tab.on{background:#fff;box-shadow:0 8px 18px -14px rgba(20,33,61,.9)}
+.empty{background:rgba(255,255,255,.66);border:1px dashed rgba(155,176,214,.5);border-radius:22px}
+.section-title h2{font-size:15.5px;letter-spacing:.4px}
+#moodPick .mood{padding:7px 11px;font-size:11px}
+
+/* 我的页头部极光 */
+.me-head::before{
+  content:"";position:absolute;left:-20%;top:-80%;width:150%;height:220%;pointer-events:none;
+  background:
+    radial-gradient(38% 38% at 26% 42%, rgba(111,217,190,.26), transparent 70%),
+    radial-gradient(34% 34% at 76% 28%, rgba(155,124,255,.28), transparent 70%);
+  filter:blur(8px);
+}
+
+/* 唱片标签保持正向 */
+.disc .label{transition:transform 1.5s cubic-bezier(.15,.92,.2,1)}
+
+/* 提示条居中显示 */
+.toast{top:auto;bottom:calc(100px + env(safe-area-inset-bottom));transform:translate(-50%,10px) scale(.96)}
+.toast.show{transform:translate(-50%,0) scale(1)}
+
+/* ============================================================
+   配色：香芋星河（深蓝紫调的浅色通透版）
+   ============================================================ */
+:root{
+  --ink:#1C2448;
+  --ink-2:#4B5578;
+  --ink-3:#8A92B2;
+  --ice:#EFF1FF;
+  --line:rgba(64,76,132,.10);
+  --shadow:0 18px 40px -26px rgba(52,62,124,.55);
+}
+body{
+  background:
+    radial-gradient(740px 500px at 8% -14%, #DCE2FF 0%, rgba(220,226,255,0) 62%),
+    radial-gradient(720px 480px at 100% 0%, #E3D6FF 0%, rgba(227,214,255,0) 60%),
+    radial-gradient(600px 420px at 44% 60%, #DFF4EE 0%, rgba(223,244,238,0) 64%),
+    linear-gradient(180deg,#E7E9FF 0%,#F2F0FF 42%,#FBFAFF 100%);
+}
+body::after{background:radial-gradient(circle,rgba(140,120,255,.16),rgba(140,120,255,0) 68%)}
+body::before{
+  background-image:
+    radial-gradient(2px 2px at 12% 18%, rgba(255,255,255,.95), transparent 60%),
+    radial-gradient(3px 3px at 78% 12%, rgba(255,255,255,.9), transparent 60%),
+    radial-gradient(2px 2px at 64% 46%, rgba(255,255,255,.8), transparent 60%),
+    radial-gradient(2px 2px at 22% 68%, rgba(255,255,255,.75), transparent 60%),
+    radial-gradient(3px 3px at 88% 74%, rgba(255,255,255,.85), transparent 60%),
+    radial-gradient(2px 2px at 42% 88%, rgba(255,255,255,.65), transparent 60%);
+}
+/* 玻璃卡片 */
+.track,.uploader,.howto,.sres,.stat,.draw-wrap,.empty,.me-stats .stat{
+  background:rgba(255,255,255,.70);
+  backdrop-filter:blur(16px) saturate(125%);
+  -webkit-backdrop-filter:blur(16px) saturate(125%);
+  border:1px solid rgba(255,255,255,.78);
+  box-shadow:0 18px 40px -26px rgba(52,62,124,.55);
+}
+.track{background:rgba(255,255,255,.76)}
+.uploader,.draw-wrap{background:rgba(255,255,255,.68)}
+.tabbar{
+  background:rgba(255,255,255,.86);
+  backdrop-filter:blur(22px) saturate(135%);
+  -webkit-backdrop-filter:blur(22px) saturate(135%);
+  border:1px solid rgba(255,255,255,.85);
+  box-shadow:0 18px 38px -18px rgba(52,62,124,.5);
+}
+.tab.on{background:rgba(255,255,255,.92);box-shadow:0 8px 18px -14px rgba(52,62,124,.95)}
+.btn.primary{
+  background:linear-gradient(135deg,#3B4A78 0%,#26315A 56%,#1A2342 100%);
+  box-shadow:0 16px 30px -16px rgba(35,45,90,.85);
+}
+.btn.ghost{
+  background:rgba(255,255,255,.72);
+  border:1px solid rgba(255,255,255,.8);
+  backdrop-filter:blur(12px);
+  box-shadow:0 12px 26px -22px rgba(52,62,124,.7);
+}
+.input,.textarea,.searchbar input{
+  background:rgba(255,255,255,.74);
+  border:1px solid rgba(255,255,255,.86);
+  backdrop-filter:blur(10px);
+}
+.input:focus,.textarea:focus,.searchbar input:focus{background:#fff;border-color:rgba(120,130,200,.55)}
+.mood,.chip{background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.9)}
+.mood.on{background:linear-gradient(135deg,#39477A,#202A4E);border-color:transparent}
+.chip:active,.mood:active{background:#fff}
+.avatar-opt{background:rgba(255,255,255,.5);border-color:transparent}
+.avatar-opt.sel{background:#fff;border-color:rgba(60,72,130,.85)}
+.avatar-wrap{background:linear-gradient(160deg,rgba(246,248,255,.9),rgba(230,236,255,.95))}
+.tbar{background:rgba(238,242,255,.8)}
+.logo{background:rgba(255,255,255,.82);backdrop-filter:blur(10px)}
+.today-pill{background:rgba(255,255,255,.78);backdrop-filter:blur(10px)}
+.plinks a{color:#3559C7}
+.mini{background:rgba(255,255,255,.72);border-color:rgba(255,255,255,.9)}
+.mini.dark{background:linear-gradient(135deg,#3B4A78,#202A4E);border-color:transparent}
+.empty{border:1px dashed rgba(150,160,214,.55)}
+.section-title h2{color:var(--ink)}
+.player{background:rgba(24,32,62,.95);box-shadow:0 20px 38px -18px rgba(20,26,52,.8);opacity:0;visibility:hidden}
+.player.show{opacity:1;visibility:visible}
+.progress i{background:#9FE3CF}
+.altline span{color:#3559C7}
+.sstate a{color:#3559C7}
+
+/* 曲库概览卡片 */
+.lib-card{
+  background:rgba(255,255,255,.72);
+  backdrop-filter:blur(16px) saturate(125%);
+  -webkit-backdrop-filter:blur(16px) saturate(125%);
+  border:1px solid rgba(255,255,255,.8);
+  border-radius:24px;padding:20px 18px 14px;
+  box-shadow:0 18px 40px -26px rgba(52,62,124,.55);
+}
+.lib-top{display:flex;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px dashed rgba(120,130,200,.2)}
+.lib-num{display:flex;align-items:baseline;gap:3px}
+.lib-num b{
+  font-size:32px;font-weight:900;line-height:1;letter-spacing:-1px;font-variant-numeric:tabular-nums;
+  background:linear-gradient(135deg,#3B4A78,#26315A);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.lib-num i{font-style:normal;font-size:12px;color:var(--ink-3)}
+.lib-meta{margin-left:auto;font-size:11.5px;color:var(--ink-3)}
+.lib-meta b{color:var(--ink);font-weight:700}
+.lib-rows{margin-top:12px}
+.lib-row{display:flex;align-items:center;gap:9px;padding:6.5px 0}
+.lib-row .d{width:7px;height:7px;border-radius:50%;flex:none}
+.lib-row .nm{width:58px;flex:none;font-size:11.5px;color:var(--ink-2)}
+.lib-row .bar{flex:1;height:6px;border-radius:6px;background:rgba(120,130,200,.14);overflow:hidden}
+.lib-row .bar em{display:block;height:100%;border-radius:6px}
+.lib-row .n{width:20px;text-align:right;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+
+/* ===== 登录门 ===== */
+.gate{
+  position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
+  padding:26px 20px calc(26px + env(safe-area-inset-bottom));
+  background:
+    radial-gradient(900px 480px at 84% -6%, #FFFFFF 0%, rgba(255,255,255,0) 62%),
+    radial-gradient(760px 460px at -8% 26%, #E3E7FF 0%, rgba(227,231,255,0) 58%),
+    linear-gradient(180deg,#EDEFFE 0%,#F6F5FF 46%,#FCFBFF 100%);
+  overflow:auto;
+}
+.gate.hide{display:none}
+.gate-inner{width:100%;max-width:380px;animation:rise .45s cubic-bezier(.22,.9,.3,1) both}
+.glogo{
+  width:74px;height:74px;border-radius:24px;background:#fff;margin:0 auto 16px;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 18px 34px -18px rgba(52,62,124,.6);
+}
+.glogo img{width:60px;height:60px;object-fit:contain}
+.gtag{text-align:center;margin:0;font-size:10.5px;letter-spacing:2px;color:#8A92B2}
+.ghead h2{text-align:center;margin:10px 0 0;font-size:24px;font-weight:900;letter-spacing:.5px}
+.gsub{text-align:center;margin:10px 0 0;font-size:12.5px;color:var(--ink-3);line-height:1.7}
+.gform{
+  margin-top:22px;background:rgba(255,255,255,.78);backdrop-filter:blur(16px);
+  border:1px solid rgba(255,255,255,.9);border-radius:24px;padding:18px 16px 16px;
+  box-shadow:0 22px 44px -30px rgba(52,62,124,.7);
+}
+.gfield{margin-bottom:14px}
+.gfield label{display:block;font-size:11.5px;font-weight:700;color:var(--ink-2);margin-bottom:7px;letter-spacing:.4px}
+.ginput{
+  width:100%;border:1px solid rgba(120,130,200,.22);background:#fff;border-radius:14px;
+  padding:14px 14px;font:inherit;font-size:15px;color:var(--ink);outline:none;
+  transition:border-color .2s,box-shadow .2s;
+}
+.ginput::placeholder{color:#B4BDD4;font-size:13px}
+.ginput:focus{border-color:#7C9BE8;box-shadow:0 0 0 4px rgba(124,155,232,.14)}
+.gmsg{min-height:16px;font-size:11.5px;color:#E9503F;margin:-4px 0 10px;line-height:1.6}
+.gate .btn.primary{margin-top:2px}
+.gquick{margin-top:18px}
+.gquick .qhint{font-size:10.5px;color:#8A92B2;text-align:center;letter-spacing:.6px;margin-bottom:10px}
+.gchips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.gchip{
+  display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(120,130,200,.18);
+  background:rgba(255,255,255,.8);border-radius:999px;padding:6px 12px 6px 6px;
+  font:inherit;font-size:11.5px;color:var(--ink);cursor:pointer;
+  box-shadow:0 8px 18px -14px rgba(52,62,124,.8);
+}
+.gchip img{width:24px;height:24px;border-radius:50%;background:#EEF2FF;object-fit:contain;flex:none}
+.gchip em{font-style:normal;color:#98A2BC;font-size:10px;font-variant-numeric:tabular-nums}
+.gfoot{margin:18px 2px 0;text-align:center;font-size:10.5px;color:#A3AFC6;line-height:1.7}
+
+body.gated{overflow:hidden}
+
+/* ===== 投稿身份提示 ===== */
+.wholine{
+  display:inline-flex;align-items:center;gap:7px;margin:0 0 12px;
+  background:rgba(59,74,120,.06);border:1px solid rgba(120,130,200,.14);
+  border-radius:999px;padding:6px 12px;font-size:11px;color:var(--ink-2);line-height:1.4;
+}
+.wholine img{width:20px;height:20px;border-radius:50%;object-fit:contain;flex:none}
+.wholine b{font-weight:700;color:var(--ink)}
+.wholine em{font-style:normal;color:#98A2BC;font-variant-numeric:tabular-nums}
+
+
+/* 云端同步卡 */
+.cloud-card{
+  display:flex;align-items:center;gap:10px;padding:14px 16px;border-radius:18px;
+  background:rgba(255,255,255,.72);backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,.85);box-shadow:0 16px 34px -26px rgba(52,62,124,.7);
+}
+.cloud-card .cdot{width:9px;height:9px;border-radius:50%;background:#B9C2D8;flex:none;box-shadow:0 0 0 3px rgba(120,130,200,.14)}
+.cloud-card .cdot.ok{background:#5FD0B4;box-shadow:0 0 0 3px rgba(95,208,180,.2)}
+.cloud-card .cdot.bad{background:#FF8A7A;box-shadow:0 0 0 3px rgba(255,138,122,.2)}
+.cloud-card .ct{min-width:0}
+.cloud-card b{display:block;font-size:13px;font-weight:800}
+.cloud-card span{display:block;margin-top:2px;font-size:11px;color:var(--ink-3)}
+.cloud-card button{
+  margin-left:auto;flex:none;border:0;cursor:pointer;font:inherit;font-size:11.5px;font-weight:700;
+  color:#3559C7;background:rgba(53,89,199,.08);border-radius:999px;padding:8px 13px;
+}
+.lonly{
+  font-size:10px;color:#8A92B2;background:rgba(120,130,200,.1);
+  border-radius:999px;padding:2px 7px;flex:none;
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="logo"><img src="https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/Ix5lbajmAo7fn9xyCm1cDyuSnhe" alt="点歌台吉祥鹅"></div>
+    <div class="brand">
+      <h1>十上无难事·点歌台</h1>
+      <p>用一首歌，形容今天的心情</p>
+    </div>
+    <div class="today-pill"><i class="dot"></i><span id="todayCount">今日 0 首</span></div>
+  </div>
+
+  <main>
+    <!-- ===== 视图：曲库 ===== -->
+    <section class="view active" id="v-home">
+      <div class="hero">
+        <div class="aurora"></div>
+        <div class="tag"><i></i>TODAY'S MOOD · 今日心情</div>
+        <h2>今天的心情，<br>是哪<em>一首歌</em>？</h2>
+        <p>你今天心情如何？如果要用一首歌形容今天的心情，你会选择哪首？快来投稿专区选一首想分享的歌，并把你今天的心情，分享给陌生的朋友。</p>
+        <div class="cta">
+          <button data-goto="upload">去投稿 →</button>
+          <button class="ghostbtn" data-goto="draw">抽一首听听</button>
+        </div>
+        <div class="art"><img src="https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/Ix5lbajmAo7fn9xyCm1cDyuSnhe" alt="点歌台吉祥鹅"></div>
+      </div>
+
+      <div class="section-title">
+        <h2>今日冰川曲库</h2><span id="libSub">还没人投稿</span>
+      </div>
+      <div id="libStats"></div>
+      <div class="howto">
+        <h3>怎么玩</h3>
+        <div class="row"><span class="num">1</span><div><b>投一首</b><p>上传文件，或在「搜索」里挑一首带入，写一句话、选一只企鹅。</p></div></div>
+        <div class="row"><span class="num">2</span><div><b>抽一首</b><p>点一下抽取，唱针会随机停在别人的分享上。</p></div></div>
+        <div class="row"><span class="num">3</span><div><b>听一句</b><p>播放这首歌，也顺便看看陌生人留下的那句话。</p></div></div>
+      </div>
+      <p class="tip">账号和投稿存在云端：换设备输入学号就能看到全部投稿。本机上传的音频只在原机可听。</p>
+    </section>
+
+    <!-- ===== 视图：上传 ===== -->
+    <section class="view" id="v-upload">
+      <div class="section-title"><h2>说说今天的心情</h2><span>选一首歌，留一句话</span></div>
+      <div class="wholine" id="postAs"></div>
+      <div class="uploader">
+        <div class="chosen" id="chosenSong"></div>
+        <div class="qzbox" id="qzbox">
+          <div class="qrow">
+            <input id="qz" placeholder="搜歌名或歌手，例如 晴天" autocomplete="off" enterkeyhint="search">
+            <button id="qzBtn">搜索</button>
+          </div>
+          <p>搜到喜欢的那首，点「选这首」，会自动带回这一页。</p>
+        </div>
+
+        <div class="field">
+          <label>歌名 <em>必填</em></label>
+          <input class="input" id="songTitle" placeholder="这首歌叫什么" maxlength="40">
+        </div>
+
+        <div class="field">
+          <label>想说的一句话 <em>最多 60 字</em></label>
+          <textarea class="textarea" id="songMsg" placeholder="为什么今天想分享它？写给第一个抽到它的人。" maxlength="60"></textarea>
+          <div class="count"><span id="msgCount">0</span>/60</div>
+        </div>
+
+        <div class="field">
+          <label>卡片上的名字 <em>默认用你登录的名字（也可以修改为其他昵称）</em></label>
+          <input class="input" id="nick" maxlength="12">
+        </div>
+
+        <div class="field">
+          <label>今天的心情 <em>会显示在卡片上</em></label>
+          <div class="moods wrap" id="moodPick"></div>
+        </div>
+
+        <div class="field">
+          <label>挑一个企鹅形象</label>
+          <div class="avatars" id="avatarGrid"></div>
+        </div>
+
+        <div style="height:20px"></div>
+        <button class="btn primary" id="submitBtn">投进冰川曲库</button>
+      </div>
+    </section>
+
+    <!-- ===== 视图：搜索 ===== -->
+    <section class="view" id="v-search">
+      <div class="section-title"><h2>搜一首歌</h2><span>搜到就能试听，也能分享进曲库</span></div>
+      <div class="searchbar">
+        <input id="q" placeholder="歌名或歌手，例如 晴天" autocomplete="off" enterkeyhint="search">
+        <button id="searchBtn">搜索</button>
+      </div>
+      <div class="hots" id="hots"></div>
+      <div class="sstate" id="searchState">输入歌名或歌手，帮你找到能试听的那一版</div>
+      <div id="results"></div>
+    </section>
+
+    <!-- ===== 视图：抽取 ===== -->
+    <section class="view" id="v-draw">
+      <div class="section-title"><h2>随机抽一首</h2><span>抽出陌生人的一首歌</span></div>
+      <div class="draw-wrap">
+        <div class="disc-stage">
+          <div class="needle" id="needle"></div>
+          <div class="disc" id="disc">
+            <div class="label"><img src="https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/SlHKblJ96orgXvxxgT2c5m9knUe" alt="点唱机"></div>
+          </div>
+        </div>
+        <div class="draw-title" id="drawTitle">冰川里有 0 首歌</div>
+        <p class="draw-sub" id="drawSub">先投一首，再抽一首</p>
+        <button class="btn primary" id="drawBtn">抽取一首</button>
+
+        <div class="result" id="result">
+          <div class="quote-card">
+            <div class="q-from" id="qFrom"></div>
+            <p class="q-text" id="qText"></p>
+            <div class="q-song" id="qSong"></div>
+          </div>
+          <div class="again-row">
+            <button class="btn ghost" id="drawAgain">再抽一次</button>
+            <button class="btn primary" id="drawPlay">播放这首</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 视图：我的 ===== -->
+    <section class="view" id="v-me">
+      <div class="section-title"><h2>我的企鹅</h2><span>形象与投稿记录</span></div>
+      <div class="me-head">
+        <div class="big"><img id="meAvatar" src="https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/H4QGbTYg0o8DUUxsnMUcEjQvnFb" alt="我"></div>
+        <div>
+          <h2 id="meNick">还没选形象</h2>
+          <p id="meSub">在下面挑一只企鹅</p>
+        </div>
+      </div>
+      <div class="me-stats">
+        <div class="stat"><b id="statTotal">0</b><span>曲库总数</span></div>
+        <div class="stat"><b id="statToday">0</b><span>今日投稿</span></div>
+        <div class="stat"><b id="statMine">0</b><span>我的投稿</span></div>
+      </div>
+
+      <div class="section-title"><h2>换个形象</h2><span>随时可换</span></div>
+      <div class="avatars" id="meAvatarGrid"></div>
+
+      <div class="section-title"><h2>我投过的歌</h2><span id="mineSub"></span></div>
+      <div id="mineList"></div>
+
+      <div class="section-title"><h2>云端同步</h2><span>所有人的投稿都在这</span></div>
+      <div class="cloud-card">
+        <i class="cdot" id="cloudDot"></i>
+        <div class="ct"><b id="cloudMain">正在连接云端…</b><span id="cloudSub2">—</span></div>
+        <button id="syncBtn">立即同步</button>
+      </div>
+
+      <div class="section-title"><h2>账号与数据</h2><span>本机缓存</span></div>
+      <button class="btn ghost" id="switchBtn" style="margin-bottom:10px">切换账号 / 退出登录</button>
+      <button class="btn ghost" id="clearBtn">清空共享曲库（所有人）</button>
+    </section>
+  </main>
+
+  <div class="player" id="player">
+    <div class="pic"><img src="https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/H4QGbTYg0o8DUUxsnMUcEjQvnFb" alt=""></div>
+    <div class="pinfo">
+      <b id="pTitle">—</b>
+      <span id="pBy">—</span>
+      <div class="progress"><i id="pBar"></i></div>
+    </div>
+    <button class="pbtn" id="pToggle">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+    <button class="pbtn" id="pClose" style="background:rgba(255,255,255,.14);color:#fff">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+
+  <nav class="tabbar">
+    <button class="tab on" data-go="home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v8a1 1 0 001 1h5v-6h4v6h5a1 1 0 001-1v-8L12 3 4 10z"/></svg><span>曲库</span>
+    </button>
+    <button class="tab" data-go="upload">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17V5m0 0l-4 4m4-4l4 4"/><path d="M5 15v3a2 2 0 002 2h10a2 2 0 002-2v-3"/></svg><span>投稿</span>
+    </button>
+    <button class="tab" data-go="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><span>搜索</span>
+    </button>
+    <button class="tab" data-go="draw">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg><span>抽取</span>
+    </button>
+    <button class="tab" data-go="me">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="9" r="3.6"/><path d="M4.5 20a7.5 7.5 0 0115 0"/></svg><span>我的</span>
+    </button>
+  </nav>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ===== 登录门：学号 + 名字 ===== -->
+<div class="gate" id="gate">
+  <div class="gate-inner">
+    <div class="ghead">
+      <div class="glogo"><img src="https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/Ix5lbajmAo7fn9xyCm1cDyuSnhe" alt="点歌台吉祥鹅"></div>
+      <p class="gtag">WELCOME · 十上无难事 点歌台</p>
+      <h2>先认一下名字</h2>
+      <p class="gsub">输入你的学号和名字，就能进入自己的点唱台。<br>没来过的话，会自动为你开一个账号。</p>
+    </div>
+    <div class="gform">
+      <div class="gfield">
+        <label>学号</label>
+        <input class="ginput" id="sidInput" inputmode="numeric" autocomplete="off" maxlength="20">
+      </div>
+      <div class="gfield">
+        <label>名字</label>
+        <input class="ginput" id="nameInput" autocomplete="off" maxlength="12">
+      </div>
+      <div class="gmsg" id="gateMsg"></div>
+      <button class="btn primary" id="loginBtn">进入我的点唱台</button>
+    </div>
+    <div class="gquick" id="gateQuick"></div>
+    <p class="gfoot">账号存在云端：任何设备输入学号 + 名字都能回到你名下，投稿会共享给所有人。</p>
+  </div>
+</div>
+<audio id="player-audio" preload="metadata"></audio>
+
+<script>
+/* ============================================================
+   数据
+   ============================================================ */
+const AVATARS = [
+  {key:'scarf',      name:'围巾鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/Xc6KbbhaeoKYs6xpDAwc74MlnIg'},
+  {key:'headphone',  name:'耳机鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/N73zbRXAZokp4SxMbfwcUJODnrh'},
+  {key:'shades',     name:'墨镜鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/H1xkbORvToOEI1xBvT5ccsRtn1d'},
+  {key:'bowtie',     name:'领结鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/T9yNb3Wggog8nFxpHybcWyEonKh'},
+  {key:'beanie',     name:'毛线帽鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/AS6IbnMC5oyyHOxLBAycLddmnte'},
+  {key:'hoodie',     name:'卫衣鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/ElK1bCE27o1wVQxMp7vcpZScnph'},
+  {key:'bow',        name:'蝴蝶结鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/OM3ObJBAioSsifxcF0RcZOEEnZf'},
+  {key:'hair',       name:'长发鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/FRImbxPrPoT86CxbXP1ceB8anAf'},
+  {key:'wreath',     name:'花环鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/YVS0bRVKQoSGYGxUhIGcPksOnIh'},
+  {key:'pink',       name:'粉围巾鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/MIXFbD4VHoRmrVxQibGcYjqvnAh'},
+  {key:'pigtail',    name:'双马尾鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/CEjebE4l6ouzGTx3TpucpKn7n3f'},
+  {key:'dress',      name:'小裙鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/M7V8bgSqTooMD2xK5OOcPKpan3c'},
+  {key:'dj',         name:'DJ鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/CAoDbMvFxoUHtOxAL62cb20lnKc'},
+  {key:'book',       name:'书本鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/CdqfbUp5KoJhlRxeZ7SchxM8nBZ'},
+  {key:'guitar',     name:'吉他鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/WZlLbD0qxoRknixcFvdcABdUnhf'},
+  {key:'pajama',     name:'睡衣鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/LzYRbrSXUoeJ7axlOlocyPgkngg'},
+  {key:'coffee',     name:'咖啡鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/Wv8RbmYfIoxBHcxuNnlcaalznFc'},
+  {key:'chef',       name:'厨师鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/B5LebBisGocxjsxIGwSceQspnNe'},
+  {key:'sport',      name:'运动鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/FVNkbBKcpo1SXBxdlcrcTiTVnxd'},
+  {key:'space',      name:'太空鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/HczxbPoVhoV7LSxfVNzcEFO8nHe'},
+  {key:'rain',       name:'雨衣鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/C56XbcA4eoW9FsxyWflcSBy7nEe'},
+  {key:'earmuff',    name:'耳罩鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/BV8DbRvcdovVpBxnZOScrM8xngf'},
+  {key:'cat',        name:'猫耳鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/ZE6YbXZQfoPs5CxBNs0c7hbqnJb'},
+  {key:'crown',      name:'皇冠鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/D8FgbrG57ojeKgxOjlwcbE3dn0Z'},
+  {key:'pilot',      name:'飞行员鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/OJSvbMBJKogmlGxNP3acOSNyngd'},
+  {key:'painter',    name:'画家鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/KnhObuYzPoo9BAxROUWcRZz2nQf'},
+  {key:'postman',    name:'邮差鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/SKkObgZaJoQYiZxPQIYchXRinie'},
+  {key:'nightcap',   name:'睡帽鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/SP68bmSxAorOawxud6bcz9M5nvb'},
+  {key:'float',      name:'泳圈鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/ODDgbxJT1oMNE9x5k5JcmGlsnHe'},
+  {key:'camera',     name:'摄影鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/R9LNbD7y5o9ycYxNTWKc8FCdnnh'},
+  {key:'santa',      name:'圣诞鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/RjUdbmMmMod4mOxsqODcnOYunbh'},
+  {key:'reindeer',   name:'驯鹿鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/G9ptbq4dpokmTKxIHLUcA5iVnmg'},
+  {key:'baseball',   name:'棒球鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/Nsk9brnirosZ98xImRgcnzbQnJK'},
+  {key:'grad',       name:'学士鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/BGQpbvB1Io5ZjOx9IUscE7jln7d'},
+  {key:'singer',     name:'歌手鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/Psy2b3l09oBbd8xtlPHc6Q8mnsh'},
+  {key:'snow',       name:'雪花鹅', url:'https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/Kx7AbhnFBosq99xTDRNcPjRjnHh'}
+];
+const AV_BY_KEY = Object.fromEntries(AVATARS.map(a=>[a.key,a]));
+
+/* 心情标签 */
+const MOODS = [
+  {key:'happy', name:'开心',    color:'#FFB23F'},
+  {key:'calm',  name:'平静',    color:'#5FD0B4'},
+  {key:'blue',  name:'有点低落', color:'#7C9BE8'},
+  {key:'miss',  name:'想念',    color:'#B68CE4'},
+  {key:'fire',  name:'很燃',    color:'#FF7A6B'},
+  {key:'mix',   name:'说不上来', color:'#9AA7C0'},
+  {key:'tired', name:'有点累',   color:'#8A94AC'},
+  {key:'hope',  name:'期待',    color:'#47B5E6'},
+  {key:'heart', name:'心动',    color:'#FF8FB1'},
+  {key:'lonely',name:'孤单',    color:'#62759F'},
+  {key:'chill', name:'松弛',    color:'#9BD36F'},
+  {key:'heal',  name:'被治愈',  color:'#FFC08A'},
+  {key:'energy',name:'元气',    color:'#FFD24C'},
+  {key:'nervous',name:'紧张',   color:'#A98BF0'},
+  {key:'tear',  name:'想哭',    color:'#5B86E5'},
+  {key:'blank', name:'放空',    color:'#C3D2DC'},
+  {key:'lazy',  name:'摆烂',    color:'#C0A48F'},
+  {key:'sweet', name:'甜',      color:'#F26FA7'},
+  {key:'relief',name:'解压',    color:'#7ED9C8'},
+  {key:'surprise',name:'惊喜',  color:'#FF9E5E'}
+];
+const MOOD_BY = Object.fromEntries(MOODS.map(m=>[m.key,m]));
+let chosenMood = 'calm';
+const LS_TRACKS = 'penguin.radio.tracks.v1';
+const LS_TOMB = 'penguin.radio.tomb.v1';
+const LS_ACCTS = 'penguin.radio.accounts.v1';
+const LS_SESSION = 'penguin.radio.session.v1';
+const LS_PROFILE = 'penguin.radio.profile.v1';   /* 旧版遗留，只用于迁移 */
+const MAX_BYTES = 30 * 1024 * 1024;
+
+let tracks = [];
+let accounts = {};                                  /* { 学号: {sid,name,nick,avatar,ts} } */
+let me = null;                                      /* 当前登录的账号 */
+let profile = {nick:'', avatar:'scarf'};            /* 渲染用的当前账号视图 */
+let pendingUrl = null;
+let lastPickId = null;
+let current = {id:null, url:null};
+let pendingPreview = null;
+let searchResults = [];
+
+/* ---------- IndexedDB：只存音频二进制 ---------- */
+let dbPromise = null;
+function db(){
+  if(dbPromise) return dbPromise;
+  dbPromise = new Promise((res,rej)=>{
+    const req = indexedDB.open('penguin-radio', 1);
+    req.onupgradeneeded = () => {
+      const d = req.result;
+      if(!d.objectStoreNames.contains('audio')) d.createObjectStore('audio');
+    };
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+  return dbPromise;
+}
+async function putAudio(id, blob){
+  const d = await db();
+  return new Promise((res,rej)=>{
+    const tx = d.transaction('audio','readwrite');
+    tx.objectStore('audio').put(blob, id);
+    tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+  });
+}
+async function getAudio(id){
+  const d = await db();
+  return new Promise((res,rej)=>{
+    const tx = d.transaction('audio','readonly');
+    const r = tx.objectStore('audio').get(id);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function delAudio(id){
+  const d = await db();
+  return new Promise((res)=>{
+    const tx = d.transaction('audio','readwrite');
+    tx.objectStore('audio').delete(id);
+    tx.oncomplete = res; tx.onerror = res;
+  });
+}
+
+/* ---------- 本地存取 ---------- */
+function loadAll(){
+  try{ tracks = JSON.parse(localStorage.getItem(LS_TRACKS) || '[]'); }catch(e){ tracks = []; }
+  try{ accounts = JSON.parse(localStorage.getItem(LS_ACCTS) || '{}') || {}; }catch(e){ accounts = {}; }
+  syncAccount();
+}
+function loadTomb(){
+  try{
+    const arr = JSON.parse(localStorage.getItem(LS_TOMB) || '[]');
+    const now = Date.now();
+    return arr.filter(x => x && now - x.ts < 86400000);
+  }catch(e){ return []; }
+}
+function addTomb(id){
+  const list = loadTomb().filter(x => x.id !== id);
+  list.push({id:id, ts:Date.now()});
+  try{ localStorage.setItem(LS_TOMB, JSON.stringify(list)); }catch(e){}
+}
+function tombIds(){ return new Set(loadTomb().map(x => x.id)); }
+
+function saveTracks(){ localStorage.setItem(LS_TRACKS, JSON.stringify(tracks)); }
+function saveAccounts(){ localStorage.setItem(LS_ACCTS, JSON.stringify(accounts)); }
+function saveProfile(){
+  if(!me) return;
+  accounts[me.sid] = me;
+  saveAccounts();
+  profile = me;
+  cloudPut('acct:'+me.sid, slimAccount(me)).catch(()=>{});
+}
+
+/* ============================================================
+   云端：跨设备共享的账号与曲库
+   ============================================================ */
+const CLOUD_BASE = 'https://kvdb.io/3E4wS3iPzm5UMY3dBzdZWo';
+let cloudOk = false, cloudTried = false, syncStart = 0;          /* 是否连上云端 */
+let cloudAt = 0;              /* 上次成功同步时间 */
+let syncing = false;
+
+async function cloudReq(path, init, opts){
+  let lastErr = null;
+  for(let i = 0; i < 3; i++){
+    const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, 9000) : null;
+    try{
+      const opt = Object.assign({}, init || {});
+      if(ctl) opt.signal = ctl.signal;
+      const res = await fetch(CLOUD_BASE + path, opt);
+      if(timer) clearTimeout(timer);
+      if(opts && opts.nullOn404 && res.status === 404) return null;
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      return res;
+    }catch(e){
+      if(timer) clearTimeout(timer);
+      lastErr = e;
+      await new Promise(r => setTimeout(r, 400 * (i + 1)));
+    }
+  }
+  throw lastErr || new Error('cloud fail');
+}
+async function cloudPut(key, obj){
+  await cloudReq('/' + key, {
+    method:'PUT',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(obj)
+  });
+}
+async function cloudGet(key){
+  const r = await cloudReq('/' + key, null, {nullOn404:true});
+  if(!r) return null;
+  const t = (await r.text()).trim();
+  if(!t) return null;
+  try{ return JSON.parse(t); }catch(e){ return null; }
+}
+async function cloudDel(key){ await cloudReq('/' + key, {method:'DELETE'}); }
+async function cloudKeys(prefix){
+  const r = await cloudReq('/?prefix=' + encodeURIComponent(prefix));
+  const t = await r.text();
+  return t.split('\n').map(x=>x.trim()).filter(k => k.indexOf(prefix) === 0);
+}
+function slimTrack(t){
+  return {id:t.id, title:t.title, msg:t.msg, nick:t.nick, sid:t.sid, owner:t.owner,
+          avatar:t.avatar, mood:t.mood, dur:t.dur, size:t.size, mime:t.mime, ts:t.ts,
+          src:t.src, previewUrl:t.previewUrl || '', artwork:t.artwork || '', artist:t.artist || ''};
+}
+function slimAccount(a){
+  return {sid:a.sid, name:a.name, nick:a.nick, avatar:a.avatar, ts:a.ts};
+}
+async function cloudPushTrack(t){
+  try{ await cloudPut('track:' + t.id, slimTrack(t)); return true; }
+  catch(e){ return false; }
+}
+/* 拉取：账号名册 + 全部投稿 */
+async function mapLimit(list, limit, fn){
+  const out = new Array(list.length);
+  let i = 0;
+  async function worker(){
+    while(i < list.length){
+      const idx = i++;
+      try{ out[idx] = await fn(list[idx]); }catch(e){ out[idx] = null; }
+    }
+  }
+  const ws = [];
+  for(let k = 0; k < Math.min(limit, list.length); k++) ws.push(worker());
+  await Promise.all(ws);
+  return out;
+}
+
+async function cloudPull(){
+  /* 防卡死：上一轮超过 25 秒还没结束就直接重来 */
+  if(syncing && Date.now() - syncStart < 25000) return;
+  syncing = true;
+  syncStart = Date.now();
+  let changed = false;
+  try{
+    /* 上次没传上去的，先补传 */
+    for(const t of tracks){
+      if(me && t.sid === me.sid && t.synced !== true){
+        try{ await cloudPut('track:' + t.id, slimTrack(t)); t.synced = true; changed = true; }
+        catch(e){}
+      }
+    }
+    const aKeys = await cloudKeys('acct:');
+    const missAcc = aKeys.filter(k => !accounts[k.slice(5)]);
+    if(missAcc.length){
+      const got = await mapLimit(missAcc, 5, k => cloudGet(k));
+      got.forEach((v, idx) => {
+        if(v && v.sid && !accounts[missAcc[idx].slice(5)]){ accounts[missAcc[idx].slice(5)] = v; changed = true; }
+      });
+      if(changed) saveAccounts();
+    }
+
+    const tKeys = await cloudKeys('track:');
+    const remote = new Set(tKeys.map(k => k.slice(6)));
+    const missIds = [];
+    for(const id of remote){ if(!tracks.some(t => t.id === id)) missIds.push(id); }
+    if(missIds.length){
+      const got = await mapLimit(missIds, 5, id => cloudGet('track:' + id));
+      const dead = tombIds();
+      got.forEach(v => { if(v && v.id && !dead.has(v.id)){ tracks.push(v); changed = true; } });
+    }
+    /* 云端已删除的，本机跟着删；刚投 90 秒内的先留着（可能还在上传） */
+    const alive = [];
+    const deadSet = tombIds();
+    for(const t of tracks){
+      if(remote.has(t.id) && !deadSet.has(t.id)){ t.synced = true; alive.push(t); continue; }
+      if(me && t.sid === me.sid && t.synced !== true){ alive.push(t); continue; }
+      changed = true;
+      delAudio(t.id);
+    }
+    if(alive.length !== tracks.length || changed){
+      tracks = alive;
+      saveTracks();
+    }
+    cloudOk = true; cloudTried = true;
+    cloudAt = Date.now();
+    renderCloud();
+    renderAll();
+  }catch(e){
+    cloudOk = false; cloudTried = true;
+    renderCloud();
+  }finally{
+    syncing = false;
+  }
+}
+async function cloudClear(){
+  for(const t of tracks) addTomb(t.id);
+  const keys = await cloudKeys('track:');
+  for(const k of keys){ try{ await cloudDel(k); }catch(e){} }
+}
+/* ---------- 账号 ---------- */
+function sessionSid(){ try{ return localStorage.getItem(LS_SESSION) || ''; }catch(e){ return ''; } }
+function setSession(sid){
+  try{
+    if(sid) localStorage.setItem(LS_SESSION, sid);
+    else localStorage.removeItem(LS_SESSION);
+  }catch(e){}
+}
+function syncAccount(){
+  const sid = sessionSid();
+  me = (sid && accounts[sid]) ? accounts[sid] : null;
+  profile = me ? me : {nick:'', avatar:'scarf'};
+}
+function cleanSid(v){ return String(v||'').trim().replace(/\s+/g,''); }
+function legacyTracks(){
+  return tracks.filter(t => t.mine && !t.sid);
+}
+/* 登录：先查云端学号，再查本机；都没有就建号 */
+async function enterAccount(sid, name){
+  sid = cleanSid(sid);
+  name = String(name||'').trim();
+  if(!/^[0-9A-Za-z_-]{2,20}$/.test(sid)) return {ok:false, msg:'学号至少 2 位，只填数字或字母'};
+  if(!name) return {ok:false, msg:'再写一下你的名字'};
+  if(name.length > 12) return {ok:false, msg:'名字最多 12 个字'};
+
+  let acc = accounts[sid] || null;
+  if(!acc){
+    try{
+      const v = await cloudGet('acct:' + sid);
+      if(v && v.sid){ acc = v; accounts[sid] = v; saveAccounts(); }
+    }catch(e){}
+  }
+  const existed = !!acc;
+  if(acc){
+    me = acc;
+    if(!me.nick) me.nick = me.name;
+  } else {
+    me = {sid, name, nick:name, avatar:'scarf', ts:Date.now()};
+    accounts[sid] = me;
+  }
+  me.ts = Date.now();
+  saveAccounts();
+  setSession(sid);
+  profile = me;
+  cloudPut('acct:' + sid, slimAccount(me)).catch(()=>{});
+
+  /* 旧版没有账号的投稿，归到第一个登录的账号名下 */
+  const legacy = legacyTracks();
+  if(legacy.length){
+    legacy.forEach(t => { t.sid = sid; t.owner = me.name; cloudPushTrack(t); });
+    saveTracks();
+  }
+  return {ok:true, existed, name: me.name};
+}
+function logout(){
+  setSession('');
+  me = null;
+  profile = {nick:'', avatar:'scarf'};
+}
+
+/* ---------- 小工具 ---------- */
+const $ = s => document.querySelector(s);
+const todayKey = () => new Date().toLocaleDateString('sv-SE');
+function fmtDur(s){
+  if(!s || !isFinite(s)) return '--:--';
+  const m = Math.floor(s/60), sec = Math.floor(s%60);
+  return m + ':' + String(sec).padStart(2,'0');
+}
+function fmtSize(b){
+  if(b > 1024*1024) return (b/1024/1024).toFixed(1) + ' MB';
+  return Math.round(b/1024) + ' KB';
+}
+function esc(s){
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+let toastTimer = null;
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+function relTime(ts){
+  const diff = (Date.now() - ts) / 1000;
+  if(diff < 60) return '刚刚';
+  if(diff < 3600) return Math.floor(diff/60) + ' 分钟前';
+  if(diff < 86400) return Math.floor(diff/3600) + ' 小时前';
+  const d = new Date(ts);
+  return (d.getMonth()+1) + '月' + d.getDate() + '日';
+}
+function todayList(){ const k = todayKey(); return tracks.filter(t => new Date(t.ts).toLocaleDateString('sv-SE') === k); }
+
+/* ============================================================
+   渲染
+   ============================================================ */
+function trackCard(t, opts){
+  opts = opts || {};
+  const av = AV_BY_KEY[t.avatar] || AVATARS[0];
+  const mood = MOOD_BY[t.mood];
+  return `
+  <div class="track" data-id="${t.id}" style="--accent:${mood ? mood.color : '#DCE6F5'}">
+    <div class="avatar-wrap"><img src="${av.url}" alt="${esc(av.name)}"></div>
+    <div class="tbody">
+      <div class="tmeta"><b>${esc(t.nick)}</b><span>·</span><span>${relTime(t.ts)}</span>
+        ${mood ? `<span class="mood-pill"><i class="d" style="background:${mood.color}"></i>${mood.name}</span>` : ''}
+      </div>
+      <div class="tmsg">${esc(t.msg || '（只留了一首歌）')}</div>
+      <div class="tbar">
+        <button class="play-dot" data-play="${t.id}" aria-label="播放">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        ${t.artwork ? `<img class="cov-s" src="${t.artwork}" alt="">` : ''}
+        <span class="song-name">${esc(t.title)}</span>
+        ${t.src === 'local' && !(me && t.sid === me.sid) ? '<span class="lonly">原机专属</span>' : ''}
+        <span class="song-dur">${fmtDur(t.dur)}</span>
+      </div>
+      ${opts.del ? `<div style="text-align:right;margin-top:6px"><button class="rm" data-del="${t.id}" style="border:0;background:none;color:#8C99B4;font-size:11px;cursor:pointer">删除</button></div>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderHome(){
+  const today = todayList();
+  $('#todayCount').textContent = '今日 ' + today.length + ' 首';
+  const d0 = new Date();
+  $('#libSub').textContent = today.length
+    ? ((d0.getMonth()+1) + ' 月 ' + d0.getDate() + ' 日')
+    : '还没人投稿';
+
+  if(!today.length){
+    $('#libStats').innerHTML = `
+      <div class="empty">
+        <img src="${AV_BY_KEY['hoodie'].url}" alt="">
+        <div>冰川还很安静。<br>用一首歌，说说你今天的心情吧。</div>
+      </div>`;
+    return;
+  }
+
+  const rows = MOODS.map(m => ({name:m.name, color:m.color, n: today.filter(t => t.mood === m.key).length}));
+  const unknown = today.filter(t => !MOOD_BY[t.mood]).length;
+  if(unknown) rows.push({name:'未选心情', color:'#9AA7C0', n: unknown});
+
+  const list = rows.filter(x => x.n > 0).sort((a,b) => b.n - a.n);
+
+  $('#libStats').innerHTML = `
+    <div class="lib-card">
+      <div class="lib-top">
+        <div class="lib-num"><b>${today.length}</b><i>首</i></div>
+        <div class="lib-meta">来自 <b>${new Set(today.map(t=>t.sid || t.nick)).size}</b> 位分享者</div>
+      </div>
+      <div class="lib-rows">
+        ${list.map(x => `
+          <div class="lib-row">
+            <i class="d" style="background:${x.color}"></i>
+            <span class="nm">${x.name}</span>
+            <span class="bar"><em style="width:${Math.max(7, Math.round(x.n / today.length * 100))}%;background:${x.color}"></em></span>
+            <b class="n">${x.n}</b>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function renderMoodPick(){
+  const el = $('#moodPick');
+  if(!el) return;
+  el.innerHTML = MOODS.map(m => `<button class="mood ${chosenMood===m.key?'on':''}" data-mpick="${m.key}"><i class="d" style="background:${m.color}"></i>${m.name}</button>`).join('');
+}
+
+function renderMe(){
+  const av = AV_BY_KEY[profile.avatar] || AVATARS[0];
+  $('#meAvatar').src = av.url;
+  $('#meNick').textContent = (me ? me.name : '未登录') || '未登录';
+  $('#meSub').textContent = me ? ('学号 ' + me.sid + ' · ' + av.name) : '先登录才能投稿';
+  $('#statTotal').textContent = tracks.length;
+  $('#statToday').textContent = todayList().length;
+  $('#statMine').textContent = tracks.filter(t=>me && t.sid === me.sid).length;
+  $('#meAvatarGrid').innerHTML = AVATARS.map(a => `
+    <div class="avatar-opt ${a.key===profile.avatar?'sel':''}" data-pick="${a.key}">
+      <span class="tick"><svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5 11-11"/></svg></span><img src="${a.url}" alt="${esc(a.name)}"><span>${esc(a.name)}</span>
+    </div>`).join('');
+  const mine = tracks.filter(t=>me && t.sid === me.sid);
+  $('#mineSub').textContent = mine.length ? mine.length + ' 首' : '';
+  $('#mineList').innerHTML = mine.length
+    ? mine.slice().sort((a,b)=>b.ts-a.ts).map(t=>trackCard(t,{del:true})).join('')
+    : `<div class="empty" style="padding:16px 0;font-size:12.5px">还没有投过歌</div>`;
+}
+
+function renderAvatars(){
+  $('#avatarGrid').innerHTML = AVATARS.map(a => `
+    <div class="avatar-opt ${a.key===profile.avatar?'sel':''}" data-pick="${a.key}">
+      <span class="tick"><svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5 11-11"/></svg></span><img src="${a.url}" alt="${esc(a.name)}"><span>${esc(a.name)}</span>
+    </div>`).join('');
+}
+
+function renderDrawMeta(){
+  const n = tracks.length;
+  $('#drawTitle').textContent = n ? ('冰川里有 ' + n + ' 首歌') : '冰川里还没有歌';
+  $('#drawSub').textContent = n ? '点一下，让唱针替你决定' : '先去投稿，再来抽取';
+  $('#drawBtn').disabled = !n;
+}
+
+function renderPostAs(){
+  const el = $('#postAs');
+  if(!el) return;
+  const av = AV_BY_KEY[profile.avatar] || AVATARS[0];
+  el.innerHTML = me
+    ? `<img src="${av.url}" alt=""><span>记入 <b>${esc(me.name)}</b> 的账号</span><em>${esc(me.sid)}</em>`
+    : '<span>还没登录账号</span>';
+}
+
+function renderCloud(){
+  const m = $('#cloudMain'), sub = $('#cloudSub2'), dot = $('#cloudDot');
+  if(!m || !dot) return;
+  if(!cloudTried && !cloudOk){
+    m.textContent = '正在连接云端…';
+    sub.textContent = '拿你学号去云端找账号和投稿';
+    dot.className = 'cdot';
+  } else if(cloudOk){
+    m.textContent = '已连接云端';
+    sub.textContent = cloudAt ? ('上次同步 ' + relTime(cloudAt)) : '正在同步…';
+    dot.className = 'cdot ok';
+  } else {
+    m.textContent = '云端暂时连不上';
+    sub.textContent = '先用本机数据，恢复后会自动补传';
+    dot.className = 'cdot bad';
+  }
+}
+
+function renderAll(){ renderHome(); renderMe(); renderAvatars(); renderDrawMeta(); renderMoodPick(); renderPostAs(); renderCloud(); }
+
+/* ============================================================
+   播放器
+   ============================================================ */
+const audio = $('#player-audio');
+function fmtClock(s){ return fmtDur(s); }
+
+async function playTrack(id){
+  const t = tracks.find(x=>x.id===id);
+  if(!t) return;
+
+  if(t.src === 'preview'){
+    if(current.url) URL.revokeObjectURL(current.url);
+    current = {id:id, url:null, by:t.nick};
+    audio.src = t.previewUrl;
+    $('#pTitle').textContent = t.title;
+    $('#pBy').textContent = t.nick + ' · 0:00 / 0:30';
+    $('#player').classList.add('show');
+    $('#pBar').style.width = '0%';
+    try{ await audio.play(); }catch(e){ toast('点一下播放按钮开始'); }
+    syncPlayIcon();
+    return;
+  }
+
+  const blob = await getAudio(id);
+  if(!blob){ toast(t.src === 'local' ? '这首歌是原主本机上传的，只有他/她的设备能听' : '这段音频找不到了'); return; }
+  if(current.url) URL.revokeObjectURL(current.url);
+  const objUrl = URL.createObjectURL(blob);
+  current = {id:id, url:objUrl, by:t.nick};
+  audio.src = objUrl;
+  $('#pTitle').textContent = t.title;
+  $('#pBy').textContent = t.nick + ' · 0:00 / ' + fmtDur(t.dur);
+  $('#player').classList.add('show');
+  $('#pBar').style.width = '0%';
+  try{ await audio.play(); }catch(e){ toast('点一下播放按钮开始'); }
+  syncPlayIcon();
+}
+
+/* 直接播放一个外部地址（搜索结果试听用） */
+function playUrl(url, title, by){
+  if(current.url) URL.revokeObjectURL(current.url);
+  current = {id:null, url:null, by:by};
+  audio.src = url;
+  $('#pTitle').textContent = title;
+  $('#pBy').textContent = by + ' · 0:00 / 0:30';
+  $('#player').classList.add('show');
+  $('#pBar').style.width = '0%';
+  audio.play().catch(()=>{ toast('点一下播放按钮开始'); });
+  syncPlayIcon();
+}
+function syncPlayIcon(){
+  const playing = !audio.paused && audio.src;
+  $('#pToggle').innerHTML = playing
+    ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+}
+audio.addEventListener('timeupdate', ()=>{
+  const d = audio.duration || 0;
+  if(d) $('#pBar').style.width = (audio.currentTime/d*100).toFixed(1) + '%';
+  const t = tracks.find(x=>x.id===current.id);
+  const who = t ? t.nick : (current.by || '');
+  $('#pBy').textContent = who + ' · ' + fmtClock(audio.currentTime) + ' / ' + fmtClock(d);
+});
+audio.addEventListener('play', syncPlayIcon);
+audio.addEventListener('pause', syncPlayIcon);
+audio.addEventListener('ended', ()=>{ $('#pBar').style.width='0%'; syncPlayIcon(); });
+
+$('#pToggle').addEventListener('click', ()=>{
+  if(!audio.src){ toast('先从曲库里选一首'); return; }
+  if(audio.paused) audio.play(); else audio.pause();
+});
+$('#pClose').addEventListener('click', ()=>{
+  audio.pause(); audio.removeAttribute('src'); audio.load();
+  if(current.url){ URL.revokeObjectURL(current.url); current.url=null; }
+  current.id = null;
+  $('#player').classList.remove('show');
+});
+
+/* ============================================================
+   路由
+   ============================================================ */
+function go(name){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  const el = $('#v-' + name);
+  if(el) el.classList.add('active');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on', t.dataset.go === name));
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click', ()=>go(t.dataset.go)));
+
+/* ============================================================
+   事件委托：播放 / 删除 / 选形象
+   ============================================================ */
+document.addEventListener('click', e=>{
+  const playBtn = e.target.closest('[data-play]');
+  if(playBtn){ playTrack(playBtn.dataset.play); return; }
+
+  const mp = e.target.closest('[data-mpick]');
+  if(mp){
+    chosenMood = mp.dataset.mpick;
+    renderMoodPick();
+    return;
+  }
+
+  const delBtn = e.target.closest('[data-del]');
+  if(delBtn){
+    const id = delBtn.dataset.del;
+    tracks = tracks.filter(t=>t.id!==id);
+    saveTracks(); delAudio(id);
+    addTomb(id);
+    cloudDel('track:' + id).catch(()=>{});
+    if(current.id === id){ $('#pClose').click(); }
+    renderAll(); toast('已从共享曲库移除');
+    return;
+  }
+
+  const pick = e.target.closest('[data-pick]');
+  if(pick){
+    profile.avatar = pick.dataset.pick;
+    saveProfile();
+    renderMe(); renderAvatars();
+    toast('换成了 ' + AV_BY_KEY[profile.avatar].name);
+  }
+});
+
+/* 投稿页的站内搜索：直接跳到搜索页并带上关键词 */
+function qzSearch(){
+  const v = ($('#qz').value || '').trim();
+  if(!v){ $('#qz').focus(); toast('先写个歌名或歌手'); return; }
+  $('#q').value = v;
+  go('search');
+  doSearch(v);
+}
+$('#qzBtn').addEventListener('click', qzSearch);
+$('#qz').addEventListener('keydown', e=>{
+  if(e.key === 'Enter'){ e.preventDefault(); qzSearch(); }
+});
+
+$('#songMsg').addEventListener('input', e=>{ $('#msgCount').textContent = e.target.value.length; });
+
+function resetForm(){
+  pendingPreview = null;
+  $('#chosenSong').classList.remove('show');
+  $('#chosenSong').innerHTML = '';
+  const box = $('#qzbox'); if(box) box.style.display = '';
+  $('#songTitle').value = ''; $('#songMsg').value = ''; $('#msgCount').textContent = '0';
+}
+
+$('#submitBtn').addEventListener('click', async () => {
+  const title = $('#songTitle').value.trim();
+  const msg = $('#songMsg').value.trim();
+  const nick = $('#nick').value.trim();
+  if(!pendingPreview){ toast('先在上面搜一首歌，点「选这首」'); $('#qz').focus(); return; }
+  if(!title){ toast('给这首歌起个名字'); $('#songTitle').focus(); return; }
+  if(!nick){ toast('留个昵称，卡片上要写'); $('#nick').focus(); return; }
+
+  if(!me){ showGate(); toast('先登录一下账号'); return; }
+  me.nick = nick; saveProfile();
+
+  const id = 't_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+  const rec = {
+    id, title, msg, nick,
+    sid: me.sid, owner: me.name,
+    avatar: profile.avatar,
+    mood: chosenMood,
+    dur: 30, size: 0, mime: 'audio/mpeg',
+    ts: Date.now(), mine: true,
+    src: 'preview',
+    previewUrl: pendingPreview.previewUrl,
+    artwork: pendingPreview.artwork,
+    artist: pendingPreview.artist
+  };
+
+  tracks.push(rec); saveTracks();
+  const pushed = await cloudPushTrack(rec);
+  rec.synced = pushed;
+  if(pushed) saveTracks();
+  resetForm();
+  renderAll();
+  toast(pushed ? ('投好了，云端收到第 ' + tracks.length + ' 首') : '投好了，先存本机，联网后自动补传');
+  go('home');
+});
+
+/* ============================================================
+   抽取
+   ============================================================ */
+const disc = $('#disc');
+const needle = $('#needle');
+let spinning = false;
+let rotation = 0;
+
+function randomPick(){
+  const pool = tracks.filter(t => t.id !== lastPickId);
+  const use = pool.length ? pool : tracks;
+  return use[Math.floor(Math.random()*use.length)];
+}
+
+function doDraw(){
+  if(!tracks.length){ toast('曲库还是空的'); return; }
+  if(spinning) return;
+  spinning = true;
+  $('#result').classList.remove('show');
+  needle.classList.add('arm');
+  rotation += 360 * 3 + Math.floor(Math.random()*120);
+  disc.style.transition = 'transform 1.5s cubic-bezier(.15,.92,.2,1)';
+  disc.style.transform = 'rotate(' + rotation + 'deg)';
+  const labelEl = disc.querySelector('.label');
+  if(labelEl) labelEl.style.transform = 'rotate(' + (-rotation) + 'deg)';
+  $('#drawSub').textContent = '唱针正在滑动…';
+
+  setTimeout(()=>{
+    const pick = randomPick();
+    lastPickId = pick.id;
+    showResult(pick);
+    needle.classList.remove('arm');
+    spinning = false;
+    renderDrawMeta();
+  }, 1550);
+}
+
+function showResult(t){
+  const av = AV_BY_KEY[t.avatar] || AVATARS[0];
+  const mood = MOOD_BY[t.mood];
+  $('#qFrom').innerHTML = `
+    <div class="avatar-wrap"><img src="${av.url}" alt="${esc(av.name)}"></div>
+    <div><b>${esc(t.nick)}</b><br><span>${relTime(t.ts)} 投进冰川 · ${esc(av.name)}${mood ? ' · ' + mood.name : ''}</span></div>`;
+  $('#qText').textContent = t.msg || '（这个人只想安安静静分享一首歌）';
+  $('#qSong').innerHTML = `
+    <button class="play-dot" data-play="${t.id}"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+    ${t.artwork ? `<img class="cov-s" src="${t.artwork}" alt="">` : ''}
+    <span class="song-name">${esc(t.title)}</span>
+    <span class="song-dur">${fmtDur(t.dur)}</span>`;
+  $('#result').classList.add('show');
+  $('#drawSub').textContent = '抽到了，点播放听听';
+  $('#drawPlay').dataset.play = t.id;
+  setTimeout(()=>{ $('#result').scrollIntoView({behavior:'smooth', block:'center'}); }, 120);
+}
+
+$('#drawBtn').addEventListener('click', doDraw);
+$('#drawAgain').addEventListener('click', doDraw);
+
+/* ============================================================
+   清空
+   ============================================================ */
+$('#clearBtn').addEventListener('click', async ()=>{
+  if(!tracks.length){ toast('曲库已经是空的'); return; }
+  if(!confirm('确定清空共享曲库吗？所有人看到的投稿都会一起删掉，本机音频也会删掉。')) return;
+  try{ await cloudClear(); }catch(e){ toast('云端暂时连不上，只清了这台设备'); }
+  for(const t of tracks) await delAudio(t.id);
+  tracks = []; saveTracks();
+  $('#pClose').click();
+  $('#result').classList.remove('show');
+  renderAll();
+  toast('曲库已清空');
+});
+
+/* ============================================================
+   搜索与跳转收听
+   ============================================================ */
+const HOT = ['晴天','陈奕迅','Taylor Swift','孙燕姿','告五人','Laufey','City Pop','周杰伦'];
+let searching = false;
+
+function qqUrl(q){ return 'https://y.qq.com/n/ryqq/search?w=' + encodeURIComponent(q); }
+function neUrl(q){ return 'https://music.163.com/#/search/m/?s=' + encodeURIComponent(q) + '&type=1'; }
+
+function renderHots(){
+  const el = $('#hots');
+  if(!el) return;
+  el.innerHTML = HOT.map(h=>`<button class="chip" data-hot="${esc(h)}">${esc(h)}</button>`).join('');
+}
+
+/* iTunes 搜索接口对 Origin:null 不发 CORS 头，用 JSONP 取数更稳 */
+function jsonpSearch(q, country, limit){
+  return new Promise(resolve=>{
+    const cbName = 'itcb_' + Math.random().toString(36).slice(2,9);
+    const s = document.createElement('script');
+    let done = false;
+    const timer = setTimeout(()=>{ finish([]); }, 8000);
+    function finish(data){
+      if(done) return;
+      done = true;
+      clearTimeout(timer);
+      if(s.parentNode) s.parentNode.removeChild(s);
+      try{ delete window[cbName]; }catch(e){ window[cbName] = undefined; }
+      resolve(data);
+    }
+    window[cbName] = data => finish((data && data.results) || []);
+    s.onerror = ()=>{ finish([]); };
+    s.src = 'https://itunes.apple.com/search?term=' + encodeURIComponent(q)
+          + '&entity=song&limit=' + limit + '&country=' + country + '&callback=' + cbName;
+    document.body.appendChild(s);
+  });
+}
+
+async function doSearch(raw){
+  const q = String(raw||'').trim();
+  if(!q){ toast('先输入歌名或歌手'); return; }
+  if(searching) return;
+  searching = true;
+  $('#results').innerHTML = '';
+  const st = $('#searchState');
+  st.style.display = 'block';
+  st.textContent = '正在搜索「' + q + '」…';
+
+  const stores = ['tw','hk','us'];
+  const all = [];
+  const packs = await Promise.all(stores.map(c => jsonpSearch(q, c, 10)));
+  packs.forEach(list => list.forEach(x => all.push(x)));
+
+  const seen = new Set();
+  searchResults = all.filter(x => x && x.previewUrl && x.trackName).filter(x=>{
+    const key = (x.trackName + '|' + x.artistName).toLowerCase();
+    if(seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 12);
+
+  searching = false;
+
+  if(!searchResults.length){
+    st.innerHTML = '没找到可以试听的版本。<br>可能是网络或地区限制，直接去 '
+      + '<a href="' + qqUrl(q) + '" target="_blank" rel="noopener">QQ音乐</a> 或 '
+      + '<a href="' + neUrl(q) + '" target="_blank" rel="noopener">网易云</a> 搜「' + esc(q) + '」。';
+    return;
+  }
+  st.style.display = 'none';
+  renderResults();
+}
+
+function renderResults(){
+  $('#results').innerHTML = searchResults.map((x,i)=>{
+    const cov = (x.artworkUrl100 || '').replace('100x100bb','300x300bb');
+    const kw = x.trackName + ' ' + x.artistName;
+    return `
+    <div class="sres">
+      <img class="cov" src="${cov}" alt="">
+      <div class="sinfo">
+        <b>${esc(x.trackName)}</b>
+        <p>${esc(x.artistName)}${x.collectionName ? ' · ' + esc(x.collectionName) : ''}</p>
+        <div class="sacts">
+          <button class="mini dark" data-aud="${i}">▶ 试听 30 秒</button>
+          <button class="mini" data-share="${i}">＋ 分享这首</button>
+        </div>
+        <div class="plinks">完整收听：
+          <a href="${qqUrl(kw)}" target="_blank" rel="noopener">QQ音乐</a>
+          <a href="${neUrl(kw)}" target="_blank" rel="noopener">网易云</a>
+          ${x.trackViewUrl ? `<a href="${x.trackViewUrl}" target="_blank" rel="noopener">Apple Music</a>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function shareFromSearch(i){
+  const x = searchResults[i];
+  if(!x) return;
+  pendingPreview = {
+    title: x.trackName,
+    artist: x.artistName,
+    previewUrl: x.previewUrl,
+    artwork: (x.artworkUrl100 || '').replace('100x100bb','300x300bb'),
+    dur: 30
+  };
+  $('#chosenSong').innerHTML = `
+    <img src="${pendingPreview.artwork}" alt="">
+    <div class="ci"><b>${esc(pendingPreview.title)}</b><span>${esc(pendingPreview.artist)} · 30 秒试听版</span></div>
+    <button class="chg" data-clear-chosen>换一首</button>`;
+  $('#chosenSong').classList.add('show');
+  const box = $('#qzbox'); if(box) box.style.display = 'none';
+  $('#songTitle').value = pendingPreview.title.slice(0,40);
+  if(!$('#nick').value.trim() && profile.nick) $('#nick').value = profile.nick;
+  go('upload');
+  toast('已带入这首歌，写一句话就能投');
+}
+
+$('#searchBtn').addEventListener('click', ()=>doSearch($('#q').value));
+$('#q').addEventListener('keydown', e=>{
+  if(e.key === 'Enter'){ e.preventDefault(); doSearch($('#q').value); }
+});
+
+document.addEventListener('click', e=>{
+  const aud = e.target.closest('[data-aud]');
+  if(aud){
+    const x = searchResults[+aud.dataset.aud];
+    if(x) playUrl(x.previewUrl, x.trackName, x.artistName + ' · 30 秒试听');
+    return;
+  }
+  const sh = e.target.closest('[data-share]');
+  if(sh){ shareFromSearch(+sh.dataset.share); return; }
+  const hot = e.target.closest('[data-hot]');
+  if(hot){ $('#q').value = hot.dataset.hot; doSearch(hot.dataset.hot); return; }
+  const gt = e.target.closest('[data-goto]');
+  if(gt){ go(gt.dataset.goto); return; }
+  const cc = e.target.closest('[data-clear-chosen]');
+  if(cc){
+    pendingPreview = null;
+    $('#chosenSong').classList.remove('show');
+    $('#chosenSong').innerHTML = '';
+    const box = $('#qzbox'); if(box) box.style.display = '';
+    $('#songTitle').value = '';
+    return;
+  }
+});
+
+/* ============================================================
+   启动
+   ============================================================ */
+function prefillNick(){
+  if(me && !$('#nick').value.trim()) $('#nick').value = me.nick || me.name;
+}
+function showGate(){
+  $('#gate').classList.remove('hide');
+  document.body.classList.add('gated');
+  $('#gateMsg').textContent = '';
+  renderGateQuick();
+  if(!$('#nameInput').value){
+    try{
+      const p = JSON.parse(localStorage.getItem(LS_PROFILE) || 'null');
+      if(p && p.nick) $('#nameInput').value = p.nick;
+    }catch(e){}
+  }
+  if(!me) setTimeout(()=>{ try{ $('#sidInput').focus(); }catch(e){} }, 60);
+}
+function hideGate(){
+  $('#gate').classList.add('hide');
+  document.body.classList.remove('gated');
+}
+function renderGateQuick(){
+  const el = $('#gateQuick');
+  const list = Object.values(accounts).sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,8);
+  if(!list.length){ el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="qhint">这台设备上还有这些账号 · 点一下直接进</div><div class="gchips">'
+    + list.map(a => {
+        const av = AV_BY_KEY[a.avatar] || AVATARS[0];
+        return `<button class="gchip" data-acct="${esc(a.sid)}"><img src="${av.url}" alt=""><span>${esc(a.name)}</span><em>${esc(a.sid)}</em></button>`;
+      }).join('') + '</div>';
+}
+function afterLogin(r){
+  hideGate();
+  $('#sidInput').value = ''; $('#nameInput').value = ''; $('#gateMsg').textContent = '';
+  $('#nick').value = '';
+  prefillNick();
+  renderAll();
+  go('home');
+  toast(r.existed ? ('欢迎回来，' + r.name) : ('账号建好了，欢迎 ' + r.name));
+}
+async function doLogin(){
+  $('#loginBtn').disabled = true;
+  $('#gateMsg').textContent = '正在连接云端…';
+  let r;
+  try{ r = await enterAccount($('#sidInput').value, $('#nameInput').value); }
+  finally{ $('#loginBtn').disabled = false; }
+  if(!r || !r.ok){ $('#gateMsg').textContent = (r && r.msg) || '连不上云端，稍后再试'; return; }
+  $('#gateMsg').textContent = '';
+  afterLogin(r);
+  cloudPull();
+}
+$('#loginBtn').addEventListener('click', doLogin);
+['sidInput','nameInput'].forEach(id=>{
+  $('#'+id).addEventListener('keydown', e=>{
+    if(e.key === 'Enter'){ e.preventDefault(); doLogin(); }
+  });
+});
+$('#switchBtn').addEventListener('click', ()=>{ logout(); renderAll(); showGate(); });
+$('#syncBtn').addEventListener('click', async ()=>{
+  toast('正在同步…');
+  await cloudPull();
+  toast(cloudOk ? ('已同步 · 当前 ' + tracks.length + ' 首') : '云端连不上，稍后再试');
+});
+
+document.addEventListener('click', e=>{
+  const ac = e.target.closest('[data-acct]');
+  if(ac){
+    const sid = ac.dataset.acct;
+    const acc = accounts[sid];
+    if(!acc) return;
+    me = acc; acc.ts = Date.now(); saveAccounts(); setSession(sid); profile = me;
+    afterLogin({ok:true, existed:true, name:acc.name});
+    return;
+  }
+  if(e.target.closest('[data-switch]')){ logout(); renderAll(); showGate(); return; }
+  if(e.target.closest('[data-login]')){ showGate(); return; }
+});
+
+loadAll();
+renderAll();
+renderHots();
+go('home');
+if(me){ hideGate(); prefillNick(); } else { showGate(); }
+cloudPull();
+setInterval(()=>{ if(!document.hidden) cloudPull(); }, 30000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) cloudPull(); });
+</script>
+</body>
+</html>
