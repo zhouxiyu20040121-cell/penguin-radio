@@ -1092,14 +1092,20 @@ function saveProfile(){
 /* ============================================================
    云端：跨设备共享的账号与曲库
    ============================================================ */
-/* 总库方案：一个公共文档，所有人读写同一份。
-   - 主：restful-api.dev 文档（可跨域、免注册）
-   - 备：kvdb 单键 library:v1（原后端，服务恢复后自动镜像，也能自愈读回）
-   - 本机另存影子副本，断网也能看到总库最近一次的样子 */
+/* 总库方案：分片对象存储（restful-api.dev 免注册、跨域）。
+   - 根文档（固定 id）：记录 wipeAt 与索引分片 id
+   - 索引分片：逻辑键（track:xxx / acct:xx）→ 对象 id
+   - 每条账号/投稿各占一个对象，单次写入小，服务偶发 500 也能成功
+   - ntfy 事件层做第二供应商兜底；本机影子副本断网可看；kvdb 仅用于历史迁移 */
+const API_BASE = 'https://api.restful-api.dev';
+const ROOT_ID = 'ff808181a09d98f701a21baadd6f5f3c';
+const REMOTE_DOC = API_BASE + '/objects/' + ROOT_ID; /* 兼容旧引用 */
 const CLOUD_BASE = 'https://kvdb.io/3E4wS3iPzm5UMY3dBzdZWo';
-const REMOTE_DOC = 'https://api.restful-api.dev/objects/ff808181a09d98f701a21baadd6f5f3c';
 const KV_LIB = 'library:v1';
 const LS_SHADOW = 'penguin.radio.cloudshadow.v1';
+const MAX_INDEX_BYTES = 600;
+const MAX_ITEM_BYTES = 760;
+
 let cloudOk = false, cloudTried = false, syncStart = 0;
 let cloudAt = 0;
 let cloudCount = 0;
@@ -1107,6 +1113,7 @@ let cloudSharers = 0;
 let lastCloudErr = '';
 let syncing = false;
 
+const sleep = ms => new Promise(r=>setTimeout(r, ms));
 function nonce(){ return Date.now() + '-' + Math.random().toString(36).slice(2,8); }
 
 function slimTrack(t){
@@ -1123,24 +1130,127 @@ function normDoc(d){
   return {accounts: d.accounts || {}, tracks: d.tracks || {}, meta: d.meta || {}};
 }
 
-async function docFetch(){
-  const r = await fetch(REMOTE_DOC + '?_=' + nonce(), {cache:'no-store'});
-  if(!r.ok){ let t=''; try{ t=(await r.text()).slice(0,160); }catch(e){} throw new Error('doc ' + r.status + ' ' + t); }
-  const j = await r.json();
-  return normDoc(j && j.data);
+/* ===== 底层请求：带重试与退避 ===== */
+async function apiReq(path, opts, tries){
+  tries = tries || 6;
+  let lastErr = null;
+  for(let i=0;i<tries;i++){
+    try{
+      const sep = path.indexOf('?') >= 0 ? '&' : '?';
+      const r = await fetch(API_BASE + path + sep + '_=' + nonce(),
+        Object.assign({cache:'no-store'}, opts));
+      if(!r.ok) throw new Error('http ' + r.status);
+      const ct = r.headers.get('content-type') || '';
+      if(ct.indexOf('json') >= 0) return await r.json();
+      return await r.text();
+    }catch(e){
+      lastErr = e;
+      await sleep(Math.min(500 * Math.pow(1.7, i), 5000) + Math.random() * 400);
+    }
+  }
+  throw lastErr || new Error('api request failed');
 }
 
-async function docSave(doc){
-  const r = await fetch(REMOTE_DOC + '?_=' + nonce(), {
-    method:'PUT',
-    cache:'no-store',
-    headers:{'Content-Type':'application/json', 'Cache-Control':'no-cache'},
-    body: JSON.stringify({name:'penguin-radio-shared', data:{v:1, accounts:doc.accounts, tracks:doc.tracks, meta:doc.meta || {}}})
+/* ===== 根文档 ===== */
+function emptyRoot(){ return {kind:'root', wipeAt:0, indexes:[]}; }
+async function rootGet(){
+  try{
+    const j = await apiReq('/objects/' + ROOT_ID);
+    const d = j.data || {};
+    if(d.kind !== 'root') return emptyRoot();
+    d.indexes = Array.isArray(d.indexes) ? d.indexes : [];
+    d.wipeAt = d.wipeAt || 0;
+    return d;
+  }catch(e){
+    /* 404 = 根文档确实不存在，给空根；其他错误（500/超时）向上抛，禁止拿空状态去写 */
+    if(String(e && e.message).indexOf('404') >= 0) return emptyRoot();
+    throw e;
+  }
+}
+async function rootPut(root){
+  return apiReq('/objects/' + ROOT_ID, {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({name:'penguin-radio-root', data:root})
   });
-  if(!r.ok){ let t=''; try{ t=(await r.text()).slice(0,160); }catch(e){} throw new Error('doc put ' + r.status + ' ' + t); }
 }
 
-/* 备用：把整份总库写进 kvdb 一个键（服务恢复后就有镜像） */
+/* ===== 索引分片 ===== */
+async function indexGet(id){
+  const j = await apiReq('/objects/' + id);
+  const d = j.data || {};
+  if(d.kind !== 'index') return {kind:'index', items:[]};
+  d.items = Array.isArray(d.items) ? d.items : [];
+  return d;
+}
+async function indexPut(id, d){
+  return apiReq('/objects/' + id, {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({name:'penguin-radio-index', data:d})
+  });
+}
+async function indexCreate(){
+  const j = await apiReq('/objects', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({name:'penguin-radio-index', data:{kind:'index', items:[]}})
+  });
+  return j.id;
+}
+
+/* 读全部索引，得到 逻辑键 → 对象 id 的映射 */
+async function readShards(){
+  const root = await rootGet();
+  const map = new Map();
+  if(!root.indexes.length) return {root, map};
+  /* 任一分片读失败都直接抛错，让外层重试，绝不用残缺映射去重建索引 */
+  const ds = await Promise.all(root.indexes.map(id=>indexGet(id)));
+  ds.forEach(d=>{
+    d.items.forEach(it=>{ if(it && it.k && it.o) map.set(it.k, it.o); });
+  });
+  return {root, map};
+}
+
+/* ===== 数据对象（每条账号 / 投稿一个） ===== */
+async function itemGet(objId){
+  const j = await apiReq('/objects/' + objId);
+  const d = j.data || {};
+  if(d.kind !== 'track' && d.kind !== 'account') return null;
+  return d;
+}
+function fitItem(kind, item){
+  let x = item;
+  for(let k=0;k<8;k++){
+    const body = JSON.stringify({name:'penguin-radio-item', data:{kind, item:x}});
+    if(body.length <= MAX_ITEM_BYTES) return x;
+    if(kind === 'track' && x.msg && x.msg.length > 10){
+      x = Object.assign({}, x, {msg: x.msg.slice(0, x.msg.length - 15)});
+      continue;
+    }
+    return x;
+  }
+  return x;
+}
+/* 已存在 → PUT；新条目 → POST，返回对象 id */
+async function itemWrite(objId, kind, item){
+  const x = fitItem(kind, item);
+  const body = JSON.stringify({name:'penguin-radio-item', data:{kind, item:x}});
+  if(objId){
+    await apiReq('/objects/' + objId, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, body
+    });
+    return objId;
+  }
+  const j = await apiReq('/objects', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body
+  });
+  return j.id;
+}
+async function itemDelete(objId){
+  try{
+    await apiReq('/objects/' + objId, {method:'DELETE'}, 3);
+  }catch(e){}
+}
+
+/* ===== kvdb 镜像与合并（旧后端兜底） ===== */
 async function kvLibPut(doc){
   try{
     await fetch(CLOUD_BASE + '/' + KV_LIB, {
@@ -1169,11 +1279,21 @@ function mergeDoc(a, b){
     if(!out.tracks[k] || (x.ts||0) > (out.tracks[k].ts||0)) out.tracks[k] = x;
   });
   const wa = Math.max((a && a.meta && a.meta.wipeAt) || 0, (b.meta && b.meta.wipeAt) || 0);
-  out.meta = Object.assign({}, out.meta, {wipeAt: wa});
+  out.meta = Object.assign({}, out.meta, b.meta || {}, {wipeAt: wa});
   return out;
 }
 
-/* 老 kvdb 里的历史数据，迁移进总库（只做一次） */
+/* 清掉已被「清空总库」抹掉的旧投稿，避免旧副本把它们复活 */
+function purgeWiped(doc){
+  const wipeAt = (doc.meta && doc.meta.wipeAt) || 0;
+  if(!wipeAt) return doc;
+  Object.keys(doc.tracks).forEach(id=>{
+    if((doc.tracks[id].ts || 0) <= wipeAt) delete doc.tracks[id];
+  });
+  return doc;
+}
+
+/* 老 kvdb 里的历史数据（只搬数据，不写盘） */
 async function importLegacy(doc){
   async function keys(prefix){
     try{
@@ -1191,48 +1311,138 @@ async function importLegacy(doc){
   }));
   accs.forEach(a=>{ if(a && a.sid) doc.accounts[a.sid] = a; });
   trks.forEach(t=>{ if(t && t.id) doc.tracks[t.id] = t; });
-  if(Object.keys(doc.accounts).length || Object.keys(doc.tracks).length) await docSave(doc);
   return doc;
 }
 
-/* 读总库：主文档 + 备用镜像，取并集 */
+/* ===== 读总库：分片对象 + kvdb 镜像合并 ===== */
 async function cloudDoc(){
-  let doc = null, err = null;
-  try{ doc = await docFetch(); }catch(e){ err = e; }
+  const {map} = await readShards();
+  const doc = normDoc();
+  if(map.size){
+    const vals = await Promise.all([...map.values()].map(o=>itemGet(o).catch(()=>null)));
+    vals.forEach(v=>{
+      if(!v) return;
+      if(v.kind === 'track' && v.item && v.item.id) doc.tracks[v.item.id] = v.item;
+      if(v.kind === 'account' && v.item && v.item.sid) doc.accounts[v.item.sid] = v.item;
+    });
+  }
+  const root = await rootGet();
+  doc.meta = {wipeAt: root.wipeAt || 0};
   const mirror = await kvLibGet();
-  if(doc && mirror) return mergeDoc(doc, mirror);
-  if(doc) return doc;
-  if(mirror) return mirror;
-  throw err || new Error('cloud unreachable');
+  const merged = mirror ? mergeDoc(doc, mirror) : doc;
+  return purgeWiped(merged);
 }
 
-/* 所有写操作排队串行，避免同时 PUT 互相覆盖、也避免被限流 */
+/* 按字节把索引重新打包成若干分片，多余的旧分片删除 */
+async function rebuildIndex(root, map){
+  const entries = [...map.entries()].map(([k,o])=>({k,o}));
+  const chunks = [];
+  let cur = [], curBytes = 60;
+  for(const e of entries){
+    const b = JSON.stringify(e).length + 1;
+    if(curBytes + b > MAX_INDEX_BYTES){ chunks.push(cur); cur = []; curBytes = 60; }
+    cur.push(e); curBytes += b;
+  }
+  if(cur.length) chunks.push(cur);
+  const ids = [];
+  for(let i=0;i<chunks.length;i++){
+    let id = root.indexes[i];
+    if(!id) id = await indexCreate();
+    await indexPut(id, {kind:'index', items:chunks[i]});
+    ids.push(id);
+  }
+  for(let i=chunks.length;i<root.indexes.length;i++){
+    await itemDelete(root.indexes[i]);
+  }
+  root.indexes = ids;
+}
+
+/* ===== 写操作：本机串行 ===== */
 let docQueue = Promise.resolve();
 function docUpdate(mut, tries){
-  const run = () => _docUpdate(mut, tries);
-  const p = docQueue.then(run, run);
+  tries = tries || 5;
+  const p = docQueue.then(()=>_docUpdate(mut,tries), ()=>_docUpdate(mut,tries));
   docQueue = p.catch(()=>{});
   return p;
 }
-async function _docUpdate(mut, tries){
-  tries = tries || 4;
+async function _docUpdate(mut, outerTries){
   let lastErr = null;
-  for(let i=0;i<tries;i++){
+  for(let attempt=0; attempt<outerTries; attempt++){
     try{
-      const doc = await cloudDoc();
+      /* 1. 读现状：根 + 索引 + 全部对象 → 逻辑文档 */
+      const {root, map} = await readShards();
+      const doc = normDoc({meta:{wipeAt: root.wipeAt || 0}});
+      if(map.size){
+        /* 任一对象读失败就整体重试，避免把没读到的条目从索引里丢掉 */
+        const vals = await Promise.all([...map.values()].map(o=>itemGet(o)));
+        vals.forEach(v=>{
+          if(v.kind === 'track' && v.item && v.item.id) doc.tracks[v.item.id] = v.item;
+          if(v.kind === 'account' && v.item && v.item.sid) doc.accounts[v.item.sid] = v.item;
+        });
+      }
+      const snapT = new Set(Object.keys(doc.tracks));
+      const snapA = new Set(Object.keys(doc.accounts));
+      const wipeBefore = doc.meta.wipeAt || 0;
+
+      /* 2. 执行逻辑修改 */
       mut(doc);
-      await docSave(doc);
+
+      /* 3. diff 出要写的对象与 ntfy 事件 */
+      const events = [];
+      const newMap = new Map(map);
+      /* 投稿 */
+      for(const id of Object.keys(doc.tracks)){
+        const key = 'track:' + id;
+        const objId = newMap.get(key);
+        const finalId = await itemWrite(objId, 'track', slimTrack(doc.tracks[id]));
+        newMap.set(key, finalId);
+        if(!snapT.has(id) || !objId) events.push({op:'upsert-track', track: slimTrack(doc.tracks[id])});
+      }
+      for(const id of snapT){
+        if(doc.tracks[id]) continue;
+        const key = 'track:' + id;
+        const objId = newMap.get(key);
+        if(objId) await itemDelete(objId);
+        newMap.delete(key);
+        events.push({op:'del-track', id});
+      }
+      /* 账号 */
+      for(const sid of Object.keys(doc.accounts)){
+        const key = 'acct:' + sid;
+        const objId = newMap.get(key);
+        const finalId = await itemWrite(objId, 'account', slimAccount(doc.accounts[sid]));
+        newMap.set(key, finalId);
+        if(!snapA.has(sid)) events.push({op:'upsert-acct', account: slimAccount(doc.accounts[sid])});
+      }
+      for(const sid of snapA){
+        if(doc.accounts[sid]) continue;
+        const key = 'acct:' + sid;
+        const objId = newMap.get(key);
+        if(objId) await itemDelete(objId);
+        newMap.delete(key);
+      }
+      /* 清空时间点 */
+      const wipeAfter = doc.meta.wipeAt || 0;
+      if(wipeAfter > wipeBefore) events.push({op:'wipe', at: wipeAfter});
+      root.wipeAt = wipeAfter;
+
+      /* 4. 重建索引、更新根文档 */
+      await rebuildIndex(root, newMap);
+      await rootPut(root);
+
+      /* 5. 镜像与事件广播 */
       kvLibPut(doc);
+      ntfyPublish(events);
       return doc;
     }catch(e){
       lastErr = e;
-      await new Promise(r=>setTimeout(r, 350 * (i + 1)));
+      await sleep(700 * (attempt + 1) + Math.random() * 400);
     }
   }
   throw lastErr || new Error('doc update failed');
 }
 
-/* ===== 兼容旧接口：cloudPut / cloudGet / cloudDel / cloudKeys ===== */
+/* ===== 兼容旧接口 ===== */
 async function cloudPut(key, obj){
   if(key.indexOf('acct:') === 0){
     const sid = key.slice(5);
@@ -1269,12 +1479,67 @@ async function cloudPushTrack(t){
   try{
     await docUpdate(d=>{ d.tracks[t.id] = slimTrack(t); }, 6);
     return true;
-  }catch(e){ lastCloudErr = String(e && e.message || e); return false; }
+  }catch(e){
+    lastCloudErr = String(e && e.message || e);
+    return false;
+  }
+}
+
+/* ===== ntfy 事件层（第二供应商，消息最长缓存 3 天，兜底+快速通知） ===== */
+const NTFY_BASE = 'https://ntfy.sh';
+const NTFY_TOPIC = 'penguin-radio-shared-v2-922f65a3';
+const NTFY_KIND = 'penguin-radio-event';
+
+async function ntfyPublish(events){
+  if(!events || !events.length) return;
+  try{
+    await Promise.all(events.map(ev=>fetch(NTFY_BASE + '/' + NTFY_TOPIC, {
+      method:'POST',
+      headers:{'Content-Type':'application/json', 'Cache-Control':'max-age=259200'},
+      body: JSON.stringify(Object.assign({kind:NTFY_KIND, at:Date.now()}, ev))
+    })));
+  }catch(e){}
+}
+
+async function ntfyPoll(){
+  try{
+    const r = await fetch(NTFY_BASE + '/' + NTFY_TOPIC + '/json?poll=1', {cache:'no-store'});
+    if(!r.ok) return [];
+    const lines = (await r.text()).split('\n').map(x=>x.trim()).filter(Boolean);
+    const out = [];
+    for(const line of lines){
+      let m; try{ m = JSON.parse(line); }catch(e){ continue; }
+      if(m.event !== 'message' || !m.message) continue;
+      let ev; try{ ev = JSON.parse(m.message); }catch(e){ continue; }
+      if(!ev || ev.kind !== NTFY_KIND) continue;
+      out.push(ev);
+    }
+    return out;
+  }catch(e){ return []; }
+}
+
+function applyNtfyEvents(doc, events){
+  let changed = false;
+  const wipeAt = (doc.meta && doc.meta.wipeAt) || 0;
+  for(const ev of events){
+    if(ev.op === 'upsert-track' && ev.track && ev.track.id){
+      const t = ev.track;
+      if((t.ts || 0) <= wipeAt) continue;
+      if(!doc.tracks[t.id] || (t.ts || 0) > (doc.tracks[t.id].ts || 0)){ doc.tracks[t.id] = t; changed = true; }
+    }else if(ev.op === 'del-track' && ev.id){
+      if(doc.tracks[ev.id]){ delete doc.tracks[ev.id]; changed = true; }
+    }else if(ev.op === 'wipe' && ev.at){
+      if(ev.at > wipeAt){ doc.meta = Object.assign({}, doc.meta, {wipeAt: ev.at}); changed = true; }
+    }else if(ev.op === 'upsert-acct' && ev.account && ev.account.sid){
+      if(!doc.accounts[ev.account.sid]){ doc.accounts[ev.account.sid] = ev.account; changed = true; }
+    }
+  }
+  return changed;
 }
 
 let pullTask = null;
 function cloudPull(){
-  /* 同一时刻只跑一次拉取；并发的调用者共用同一个结果 */
+  /* 同一时刻只跑一次拉取；并发调用者共用同一个结果 */
   if(pullTask) return pullTask;
   pullTask = _cloudPull().catch(()=>{}).then(()=>{ pullTask = null; });
   return pullTask;
@@ -1284,24 +1549,45 @@ async function _cloudPull(){
   syncStart = Date.now();
   let changed = false;
   try{
-    /* 读总库 */
+    /* 先读一次总库，判断是否空库 */
     let doc = await cloudDoc();
 
-    /* 总库还空着：把老 kvdb 里的账号/投稿迁过来 */
+    /* 总库还空着：把老 kvdb 的账号/投稿迁进来，走分片写入管线 */
     if(!Object.keys(doc.tracks).length && !Object.keys(doc.accounts).length){
-      try{ doc = await importLegacy(doc); }catch(e){}
+      const legacy = await importLegacy(normDoc());
+      if(Object.keys(legacy.accounts).length || Object.keys(legacy.tracks).length){
+        await docUpdate(d=>{
+          Object.keys(legacy.accounts).forEach(sid=>{ d.accounts[sid] = legacy.accounts[sid]; });
+          Object.keys(legacy.tracks).forEach(id=>{ d.tracks[id] = legacy.tracks[id]; });
+        }, 6);
+        doc = await cloudDoc();
+      }
     }
 
     /* 本机还没传成功的，补传进总库 */
     const unsynced = tracks.filter(t => me && t.sid === me.sid && t.synced !== true);
     if(unsynced.length){
       try{
-        await docUpdate(d=>{ unsynced.forEach(t=>{ d.tracks[t.id] = slimTrack(t); }); });
+        await docUpdate(d=>{ unsynced.forEach(t=>{ d.tracks[t.id] = slimTrack(t); }); }, 6);
         unsynced.forEach(t=>{ t.synced = true; });
         changed = true;
         doc = await cloudDoc();
       }catch(e){}
     }
+
+    /* ntfy 事件层：总库缺的内容从这里补回来，再尽力写回分片 */
+    try{
+      const evs = await ntfyPoll();
+      if(evs.length && applyNtfyEvents(doc, evs)){
+        try{
+          await docUpdate(d=>{
+            Object.keys(doc.tracks).forEach(id=>{ d.tracks[id] = doc.tracks[id]; });
+            Object.keys(doc.accounts).forEach(sid=>{ d.accounts[sid] = doc.accounts[sid]; });
+          }, 3);
+        }catch(e){}
+        doc = await cloudDoc().catch(()=>doc);
+      }
+    }catch(e){}
 
     /* 影子副本：断网时还能看到总库最近的样子 */
     try{ localStorage.setItem(LS_SHADOW, JSON.stringify(doc)); }catch(e){}
@@ -1327,16 +1613,14 @@ async function _cloudPull(){
       else { const loc = tracks.find(t=>t.id===id); if(loc) loc.synced = true; }
     });
 
-    /* 总库里没有的，本机删掉（保住自己还没来得及传的） */
+    /* 总库里没有的本机处理（保住自己还没来得及传的） */
     const alive = [];
     for(const t of tracks){
       if(dead.has(t.id)){ delAudio(t.id); changed = true; continue; }
       if((t.ts || 0) <= wipeAt){ addTomb(t.id); delAudio(t.id); changed = true; continue; }
       const remote = doc.tracks[t.id];
       if(remote && (remote.ts || 0) > wipeAt){ t.synced = true; alive.push(t); continue; }
-      /* 总库突然空了（服务重置）：别删本地，标成未同步，下一轮自己补传 */
       if(docEmpty){ t.synced = false; alive.push(t); continue; }
-      /* 自己的歌云端没有：不管旧标记如何，都先留着并重新上传（迁移期最稳） */
       if(me && t.sid === me.sid){ t.synced = false; alive.push(t); continue; }
       delAudio(t.id); changed = true;
     }
@@ -1346,7 +1630,7 @@ async function _cloudPull(){
     renderCloud(); renderAll();
   }catch(e){
     lastCloudErr = String(e && e.message || e);
-    /* 连不上：先用影子副本撑住，别让自己的曲库看起来是空的 */
+    /* 连不上：先用影子副本撑住 */
     try{
       const shadow = JSON.parse(localStorage.getItem(LS_SHADOW) || 'null');
       if(shadow){
@@ -1367,11 +1651,13 @@ async function _cloudPull(){
     syncing = false;
   }
 }
+
 async function cloudClear(){
   const at = Date.now();
   for(const t of tracks) addTomb(t.id);
   await docUpdate(d=>{ d.meta = Object.assign({}, d.meta, {wipeAt: at}); d.tracks = {}; }, 6);
 }
+
 /* 只清自己的投稿 */
 function myTracks(){
   const sid = sessionSid();
@@ -1382,9 +1668,10 @@ async function cloudClearMine(list){
   const ids = list.map(t=>t.id);
   ids.forEach(id=>addTomb(id));
   try{
-    await docUpdate(d=>{ ids.forEach(id=>{ delete d.tracks[id]; }); });
+    await docUpdate(d=>{ ids.forEach(id=>{ delete d.tracks[id]; }); }, 6);
   }catch(e){}
 }
+
 /* 管理员：学号 88 且姓名为 周夕喻 */
 function isAdmin(){
   if(!me) return false;
