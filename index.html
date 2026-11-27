@@ -1353,13 +1353,17 @@ async function rebuildIndex(root, map){
     cur.push(e); curBytes += b;
   }
   if(cur.length) chunks.push(cur);
-  const ids = [];
-  for(let i=0;i<chunks.length;i++){
-    let id = root.indexes[i];
-    if(!id) id = await indexCreate();
-    await indexPut(id, {kind:'index', items:chunks[i]});
-    ids.push(id);
-  }
+  /* 分片 id 先补齐（新建并行） */
+  while(root.indexes.length < chunks.length) root.indexes.push(await indexCreate());
+  /* 内容没变的分片跳过写，其余并行写 */
+  const ids = await Promise.all(chunks.map(async (items, i)=>{
+    const id = root.indexes[i];
+    const want = JSON.stringify({kind:'index', items});
+    let oldSig = '';
+    try{ oldSig = JSON.stringify(await indexGet(id)); }catch(e){ oldSig = ''; }
+    if(oldSig !== want) await indexPut(id, {kind:'index', items});
+    return id;
+  }));
   for(let i=chunks.length;i<root.indexes.length;i++){
     await itemDelete(root.indexes[i]);
   }
@@ -1375,6 +1379,7 @@ function docUpdate(mut, tries){
   return p;
 }
 async function _docUpdate(mut, outerTries){
+  outerTries = outerTries || 5;
   let lastErr = null;
   for(let attempt=0; attempt<outerTries; attempt++){
     try{
@@ -1389,47 +1394,60 @@ async function _docUpdate(mut, outerTries){
           if(v.kind === 'account' && v.item && v.item.sid) doc.accounts[v.item.sid] = v.item;
         });
       }
-      const snapT = new Set(Object.keys(doc.tracks));
-      const snapA = new Set(Object.keys(doc.accounts));
+      /* 改动前快照（按 ts 判断条目是否真的变了） */
+      const snapT = {}, snapA = {};
+      Object.keys(doc.tracks).forEach(id=>{ snapT[id] = doc.tracks[id].ts || 0; });
+      Object.keys(doc.accounts).forEach(sid=>{ snapA[sid] = doc.accounts[sid].ts || 0; });
       const wipeBefore = doc.meta.wipeAt || 0;
 
       /* 2. 执行逻辑修改 */
       mut(doc);
 
-      /* 3. diff 出要写的对象与 ntfy 事件 */
+      /* 3. 只写真正变化的对象，且并行；diff 出 ntfy 事件 */
       const events = [];
       const newMap = new Map(map);
-      /* 投稿 */
-      for(const id of Object.keys(doc.tracks)){
+
+      /* 投稿：新增或 ts 变化的 */
+      const upsertT = Object.keys(doc.tracks).filter(id=>
+        !(id in snapT) || (doc.tracks[id].ts || 0) !== snapT[id]);
+      const wT = await Promise.all(upsertT.map(async id=>{
         const key = 'track:' + id;
-        const objId = newMap.get(key);
-        const finalId = await itemWrite(objId, 'track', slimTrack(doc.tracks[id]));
-        newMap.set(key, finalId);
-        if(!snapT.has(id) || !objId) events.push({op:'upsert-track', track: slimTrack(doc.tracks[id])});
-      }
-      for(const id of snapT){
-        if(doc.tracks[id]) continue;
-        const key = 'track:' + id;
-        const objId = newMap.get(key);
+        const finalId = await itemWrite(newMap.get(key), 'track', slimTrack(doc.tracks[id]));
+        return {key, finalId, id, isNew: !(id in snapT)};
+      }));
+      wT.forEach(r=>{
+        newMap.set(r.key, r.finalId);
+        if(r.isNew) events.push({op:'upsert-track', track: slimTrack(doc.tracks[r.id])});
+      });
+      /* 投稿：删除的 */
+      const delT = Object.keys(snapT).filter(id=>!doc.tracks[id]);
+      await Promise.all(delT.map(async id=>{
+        const key = 'track:' + id, objId = newMap.get(key);
         if(objId) await itemDelete(objId);
         newMap.delete(key);
-        events.push({op:'del-track', id});
-      }
-      /* 账号 */
-      for(const sid of Object.keys(doc.accounts)){
+      }));
+      delT.forEach(id=>events.push({op:'del-track', id}));
+
+      /* 账号：新增或 ts 变化的 */
+      const upsertA = Object.keys(doc.accounts).filter(sid=>
+        !(sid in snapA) || (doc.accounts[sid].ts || 0) !== snapA[sid]);
+      const wA = await Promise.all(upsertA.map(async sid=>{
         const key = 'acct:' + sid;
-        const objId = newMap.get(key);
-        const finalId = await itemWrite(objId, 'account', slimAccount(doc.accounts[sid]));
-        newMap.set(key, finalId);
-        if(!snapA.has(sid)) events.push({op:'upsert-acct', account: slimAccount(doc.accounts[sid])});
-      }
-      for(const sid of snapA){
-        if(doc.accounts[sid]) continue;
-        const key = 'acct:' + sid;
-        const objId = newMap.get(key);
+        const finalId = await itemWrite(newMap.get(key), 'account', slimAccount(doc.accounts[sid]));
+        return {key, finalId, sid, isNew: !(sid in snapA)};
+      }));
+      wA.forEach(r=>{
+        newMap.set(r.key, r.finalId);
+        if(r.isNew) events.push({op:'upsert-acct', account: slimAccount(doc.accounts[r.sid])});
+      });
+      /* 账号：删除的 */
+      const delA = Object.keys(snapA).filter(sid=>!doc.accounts[sid]);
+      await Promise.all(delA.map(async sid=>{
+        const key = 'acct:' + sid, objId = newMap.get(key);
         if(objId) await itemDelete(objId);
         newMap.delete(key);
-      }
+      }));
+
       /* 清空时间点 */
       const wipeAfter = doc.meta.wipeAt || 0;
       if(wipeAfter > wipeBefore) events.push({op:'wipe', at: wipeAfter});
@@ -1445,7 +1463,7 @@ async function _docUpdate(mut, outerTries){
       return doc;
     }catch(e){
       lastErr = e;
-      await sleep(700 * (attempt + 1) + Math.random() * 400);
+      await sleep(600 * (attempt + 1) + Math.random() * 300);
     }
   }
   throw lastErr || new Error('doc update failed');
@@ -1496,7 +1514,7 @@ async function cloudPushTrack(t){
 
 /* ===== ntfy 事件层（第二供应商，消息最长缓存 3 天，兜底+快速通知） ===== */
 const NTFY_BASE = 'https://ntfy.sh';
-const NTFY_TOPIC = 'penguin-radio-shared-v2-922f65a3';
+const NTFY_TOPIC = 'penguin-radio-shared-v3-63569b3e';
 const NTFY_KIND = 'penguin-radio-event';
 
 async function ntfyPublish(events){
