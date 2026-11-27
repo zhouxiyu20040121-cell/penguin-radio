@@ -331,6 +331,20 @@ main{flex:1}
 }
 .searchbar button:active{transform:scale(.97)}
 .hots{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px}
+.stoggle{display:flex;gap:6px;margin:0 0 10px}
+.stbtn{border:0;background:rgba(255,255,255,.6);color:#41506B;font-size:12px;font-weight:600;padding:6px 13px;border-radius:999px;cursor:pointer;box-shadow:0 2px 8px rgba(38,60,100,.06)}
+.stbtn.on{background:#2C3B58;color:#fff}
+.acard{display:flex;gap:12px;align-items:center;background:#fff;border-radius:16px;padding:10px;margin-bottom:8px;box-shadow:0 6px 18px rgba(38,60,100,.08)}
+.acard img{width:62px;height:62px;border-radius:10px;object-fit:cover;background:#EDF2FA;flex:none}
+.ainfo{flex:1;min-width:0}
+.ainfo b{display:block;font-size:13.5px;color:#1E2A44;line-height:1.35}
+.ainfo span{font-size:11.5px;color:#7C8AA5;display:block;margin-top:3px}
+.abtn{border:0;background:#EAF0FA;color:#2C3B58;font-size:12px;font-weight:600;border-radius:999px;padding:7px 13px;cursor:pointer;white-space:nowrap;text-decoration:none}
+.atracks{padding:0 4px;margin:-2px 0 12px}
+.atracks:empty{display:none}
+.atrow{display:flex;gap:8px;align-items:center;padding:7px 0;border-bottom:1px dashed #E6ECF6}
+.atrow .idx{width:16px;color:#A6B2C8;font-size:11px;text-align:right;flex:none}
+.atrow .t{flex:1;min-width:0;font-size:12.5px;color:#22314D;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chip{
   border:1px solid var(--line);background:rgba(255,255,255,.82);border-radius:999px;
   padding:7px 13px;font-size:12px;color:var(--ink-2);cursor:pointer;font-family:inherit;
@@ -782,8 +796,13 @@ body.gated{overflow:hidden}
         <input id="q" placeholder="歌名或歌手，例如 晴天" autocomplete="off" enterkeyhint="search">
         <button id="searchBtn">搜索</button>
       </div>
+      <div class="stoggle" id="sToggle">
+        <button class="stbtn on" data-mode="song">单曲</button>
+        <button class="stbtn" data-mode="album">专辑 · 原声带</button>
+      </div>
       <div class="hots" id="hots"></div>
       <div class="sstate" id="searchState">输入歌名或歌手，帮你找到能试听的那一版</div>
+      <div id="albums"></div>
       <div id="results"></div>
     </section>
 
@@ -1737,7 +1756,7 @@ $('#clearAllBtn').addEventListener('click', async ()=>{
 /* ============================================================
    搜索与跳转收听
    ============================================================ */
-const HOT = ['晴天','陈奕迅','Taylor Swift','孙燕姿','告五人','Laufey','City Pop','周杰伦'];
+const HOT = ['晴天','音乐剧','Hamilton','周杰伦','赵氏孤儿','Laufey','悲惨世界','告五人'];
 let searching = false;
 
 function qqUrl(q){ return 'https://y.qq.com/n/ryqq/search?w=' + encodeURIComponent(q); }
@@ -1793,14 +1812,16 @@ function jsonpQQ(q){
     window.callback = data => {
       try{
         const list = (data && data.data && data.data.song && data.data.song.list) || [];
-        finish(list.map(x=>({
+        finish(list.map((x, qi)=>({
           trackName: String(x.songname || '').replace(/<em>|<\/em>/g,''),
           artistName: (x.singer || []).map(v=>v.name).join('、'),
           collectionName: x.albumname || '',
           artworkUrl100: x.albummid ? ('https://y.gtimg.cn/music/photo_new/T002R300x300M000' + x.albummid + '.jpg') : '',
+          albumMid: x.albummid || '',
           previewUrl: '',
           trackViewUrl: '',
-          srcName: 'QQ音乐'
+          srcName: 'QQ音乐',
+          __rank: qi
         })).filter(x=>x.trackName));
       }catch(e){ finish([]); }
     };
@@ -1812,9 +1833,217 @@ function jsonpQQ(q){
   return qqBusy;
 }
 
+/* ============================================================
+   专辑 / 原声带搜索（音乐剧 Cast Recording 主要靠这里）
+   ============================================================ */
+let searchMode = 'song';
+let albumResults = [];
+let albumTrackCache = {};
+
+const STORES = ['us','hk','tw','jp'];
+
+function jsonpJSON(url){
+  return new Promise(resolve=>{
+    const cb = 'jp_' + Math.random().toString(36).slice(2,9);
+    const s = document.createElement('script');
+    let done = false;
+    const timer = setTimeout(()=>fin(null), 9000);
+    function fin(d){
+      if(done) return; done = true;
+      clearTimeout(timer);
+      if(s.parentNode) s.parentNode.removeChild(s);
+      try{ delete window[cb]; }catch(e){ window[cb] = undefined; }
+      resolve(d);
+    }
+    window[cb] = d=>fin(d);
+    s.onerror = ()=>fin(null);
+    s.src = url + (url.indexOf('?')>=0 ? '&' : '?') + 'callback=' + cb;
+    document.body.appendChild(s);
+  });
+}
+
+/* 中文剧名 → 官方英文名：Cast Recording 大多只挂英文名 */
+const MUSICAL_MAP = {
+  '猫':'Cats','悲惨世界':'Les Miserables','歌剧魅影':'The Phantom of the Opera','巴黎圣母院':'Notre-Dame de Paris',
+  '罗密欧与朱丽叶':'Romeo et Juliette','西区故事':'West Side Story','音乐之声':'The Sound of Music',
+  '汉密尔顿':'Hamilton','魔法坏女巫':'Wicked','女巫':'Wicked','六位王后':'Six the Musical','狮子王':'The Lion King',
+  '阿拉丁':'Aladdin','妈妈咪呀':'Mamma Mia','芝加哥':'Chicago','吉屋出租':'Rent','春之觉醒':'Spring Awakening',
+  '致埃文汉森':'Dear Evan Hansen','绿野仙踪':'The Wizard of Oz','美女与野兽':'Beauty and the Beast',
+  '悲惨世界音乐剧':'Les Miserables','伊丽莎白':'Elisabeth','莫扎特':'Mozart!','吸血鬼之舞':'Tanz der Vampire'
+};
+function musicalAlias(q){
+  const k = String(q||'').trim();
+  return MUSICAL_MAP[k] || MUSICAL_MAP[k.replace(/\s|音乐剧|原声带?|原声辑/g,'')] || '';
+}
+
+function albumQuery(q){
+  const stripped = q.replace(/(音乐剧|原声带|原声辑|原声|original cast|cast recording|soundtrack|musical|ost|专辑|百老汇|broadway)/gi,'').replace(/\s+/g,' ').trim();
+  return stripped || q;
+}
+
+async function doSearchAlbums(q){
+  if(searching) return;
+  searching = true;
+  $('#results').innerHTML = '';
+  $('#albums').innerHTML = '';
+  const st = $('#searchState');
+  st.style.display = 'block';
+  st.textContent = '正在搜专辑「' + q + '」…';
+
+  const term = albumQuery(q);
+  const alias = musicalAlias(q);
+  const appleTerm = alias || term;
+  const packsP = Promise.all(STORES.map(c=>jsonpJSON('https://itunes.apple.com/search?term='+encodeURIComponent(appleTerm)+'&country='+c+'&media=music&entity=album&attribute=albumTerm&limit=10')));
+  const qqP = jsonpQQ(q);
+  const res = await Promise.all([packsP, qqP]);
+  const packs = res[0] || [];
+  const qqSongs = res[1] || [];
+
+  const list = [];
+  const seen = new Set();
+  packs.forEach((d,i)=>{
+    ((d && d.results) || []).forEach(r=>{
+      if(!r.collectionId) return;
+      const key = 'a' + r.collectionId;
+      if(seen.has(key)) return;
+      seen.add(key);
+      list.push({kind:'apple', id:r.collectionId, country:STORES[i], name:r.collectionName||'', artist:r.artistName||'',
+        cover:(r.artworkUrl100||'').replace('100x100bb','300x300bb'), count:r.trackCount||0, url:r.collectionViewUrl||''});
+    });
+  });
+
+  const groups = {};
+  qqSongs.forEach(x=>{
+    if(!x.albumMid) return;
+    const key = 'q' + x.albumMid;
+    if(seen.has(key)) return;
+    let g = groups[x.albumMid];
+    if(!g){
+      g = groups[x.albumMid] = {kind:'qq', mid:x.albumMid, name:x.collectionName || x.trackName, artist:x.artistName||'',
+        cover:'https://y.gtimg.cn/music/photo_new/T002R300x300M000'+x.albumMid+'.jpg', count:0,
+        url:'https://y.qq.com/n/ryqq/albumDetail/'+x.albumMid};
+    }
+    g.count++;
+  });
+  Object.keys(groups).forEach(k=>{ if(groups[k].name) { seen.add('q'+k); list.push(groups[k]); } });
+
+  /* QQ 卡片拿真实曲目数（只取前几张，避免请求过多） */
+  const qqTop = list.filter(a=>a.kind === 'qq').slice(0, 8);
+  await Promise.all(qqTop.map(async a=>{
+    const payload = {comm:{ct:24, cv:0}, req_1:{module:'music.musichallAlbum.AlbumSongList', method:'GetAlbumSongList',
+      param:{albumMid:a.mid, begin:0, num:1}}};
+    const d = await jsonpJSON('https://u.y.qq.com/cgi-bin/musicu.fcg?format=jsonp&data=' + encodeURIComponent(JSON.stringify(payload)));
+    const n = d && d.req_1 && d.req_1.data && d.req_1.data.totalNum;
+    if(n){ a.count = n; a.real = true; }
+  }));
+
+  const plain = v => String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const core = plain(q).replace(/(音乐剧|原声带|原声辑|原声|ost|soundtrack|musical|专辑|百老汇|broadway)/g,'').replace(/\s+/g,' ').trim();
+  const al = plain(alias);
+  const score = a=>{
+    const n = plain(a.name), ar = plain(a.artist);
+    let sc = 0;
+    if(core && n.indexOf(core) >= 0) sc += 6;
+    if(al && n.indexOf(al) >= 0) sc += 6;
+    if(core && ar.indexOf(core) >= 0) sc += 2;
+    if(/音乐剧|original cast|cast recording|soundtrack|原声带|原声辑/.test(n)) sc += 2.5;
+    if(a.kind === 'qq') sc += 0.8;
+    if((a.count||0) >= 8) sc += 1;
+    if(a.kind === 'qq' && !a.real && (a.count||0) < 3) sc -= 2;   /* 单曲型「专辑」多半是同人翻唱 */
+    return sc;
+  };
+  albumResults = list.sort((x,y)=>score(y)-score(x)).slice(0, 12);
+  albumTrackCache = {};
+
+  searching = false;
+  if(!albumResults.length){
+    st.innerHTML = '没搜到这张专辑。<br>换个剧名或专辑名试试，或者直接去 '
+      + '<a href="' + qqUrl(q) + '" target="_blank" rel="noopener">QQ音乐</a> / '
+      + '<a href="' + neUrl(q) + '" target="_blank" rel="noopener">网易云</a> 搜。';
+    return;
+  }
+  st.style.display = 'none';
+  renderAlbums();
+}
+
+function renderAlbums(){
+  const el = $('#albums');
+  el.innerHTML = albumResults.map((a,i)=>`
+    <div class="acard">
+      <img src="${a.cover}" alt="" loading="lazy">
+      <div class="ainfo">
+        <b>${esc(a.name)}</b>
+        <span>${esc(a.artist)}${(a.real || a.kind === 'apple') && a.count ? ' · ' + a.count + ' 首' : ''}${a.kind === 'qq' ? ' · QQ音乐' : ' · Apple Music'}</span>
+      </div>
+      <button class="abtn" data-album="${i}">曲目</button>
+    </div>
+    <div class="atracks" id="atr-${i}"></div>`).join('');
+}
+
+async function expandAlbum(i){
+  const a = albumResults[i];
+  const box = $('#atr-' + i);
+  if(!a || !box) return;
+  if(box.dataset.open === '1'){
+    box.dataset.open = '0';
+    box.innerHTML = '';
+    return;
+  }
+  box.dataset.open = '1';
+  box.innerHTML = '<div class="atrow" style="border:0"><span class="t" style="color:#8C99B4">正在取曲目…</span></div>';
+
+  let list = [];
+  if(a.kind === 'apple'){
+    const d = await jsonpJSON('https://itunes.apple.com/lookup?id=' + a.id + '&entity=song&country=' + a.country + '&limit=200');
+    list = ((d && d.results) || []).filter(x=>x.wrapperType === 'track' && x.trackName).map(x=>({
+      title:x.trackName, artist:x.artistName || '',
+      previewUrl:x.previewUrl || '',
+      artwork:(x.artworkUrl100 || '').replace('100x100bb','300x300bb')
+    }));
+  }else{
+    const payload = {comm:{ct:24, cv:0}, req_1:{module:'music.musichallAlbum.AlbumSongList', method:'GetAlbumSongList',
+      param:{albumMid:a.mid, begin:0, num:100}}};
+    const d = await jsonpJSON('https://u.y.qq.com/cgi-bin/musicu.fcg?format=jsonp&data=' + encodeURIComponent(JSON.stringify(payload)));
+    const sl = (d && d.req_1 && d.req_1.data && d.req_1.data.songList) || [];
+    list = sl.map(o=>{
+      const s = o.songInfo || {};
+      return {title:s.name || s.title || '', artist:(s.singer || []).map(v=>v.name).join('、'), previewUrl:'', artwork:a.cover};
+    }).filter(x=>x.title);
+  }
+
+  if(!list.length){
+    box.innerHTML = '<div class="atrow" style="border:0"><span class="t" style="color:#8C99B4">这张没取到曲目，点下面的「整张专辑」去听</span></div>'
+      + (a.url ? `<div class="atrow" style="border:0"><span class="t"></span><a class="abtn" href="${a.url}" target="_blank" rel="noopener">整张专辑</a></div>` : '');
+    return;
+  }
+
+  albumTrackCache[i] = list;
+  box.innerHTML = list.map((t,k)=>`
+    <div class="atrow">
+      <span class="idx">${k+1}</span>
+      <span class="t" title="${esc(t.title)}">${esc(t.title)}</span>
+      <button class="mini dark" data-atrack="${i}|${k}">${t.previewUrl ? '▶ 30 秒' : '↗ 外链'}</button>
+      <button class="mini" data-atrackshare="${i}|${k}">＋ 分享</button>
+    </div>`).join('')
+    + (a.url ? `<div class="atrow" style="border:0"><span class="t"></span><a class="abtn" href="${a.url}" target="_blank" rel="noopener">整张专辑</a></div>` : '');
+}
+
+function setSearchMode(m){
+  searchMode = m;
+  document.querySelectorAll('#sToggle .stbtn').forEach(b=>b.classList.toggle('on', b.dataset.mode === m));
+  $('#results').innerHTML = '';
+  $('#albums').innerHTML = '';
+  const st = $('#searchState');
+  st.style.display = 'block';
+  st.textContent = m === 'album'
+    ? '搜剧名或专辑名，例如 蝶 / 赵氏孤儿 / Hamilton，点「曲目」看整张原声带'
+    : '输入歌名或歌手，帮你找到能试听的那一版';
+}
+
 async function doSearch(raw){
   const q = String(raw||'').trim();
   if(!q){ toast('先输入歌名或歌手'); return; }
+  if(searchMode === 'album'){ doSearchAlbums(q); return; }
   if(searching) return;
   searching = true;
   $('#results').innerHTML = '';
@@ -1831,13 +2060,26 @@ async function doSearch(raw){
   async function fetchAll(term){
     const packs = await Promise.all(stores.map(c => jsonpSearch(term, c, 20)));
     const flat = [];
-    packs.forEach(list => list.forEach(x => flat.push(x)));
+    packs.forEach(list => list.forEach((x, i) => {
+      if(x && typeof x.__rank !== 'number') x.__rank = i;   /* 保留各源自己的相关度顺序 */
+      flat.push(x);
+    }));
     return flat;
   }
 
+  const alias = musicalAlias(q);
+  if(alias && alias.toLowerCase() !== q.toLowerCase()) variants.push(alias);
+
   let itunes = await fetchAll(variants[0]);
-  if(itunes.filter(x=>x && x.previewUrl).length < 3 && variants[1]){
-    itunes = itunes.concat(await fetchAll(variants[1]));
+  for(let vi = 1; vi < variants.length; vi++){
+    if(itunes.filter(x=>x && x.previewUrl).length >= 3) break;
+    itunes = itunes.concat(await fetchAll(variants[vi]));
+  }
+  /* 剧名别名（Hamilton / Cats…）单独再搜一轮，标上 viaAlias 让它排前面 */
+  if(alias && alias.toLowerCase() !== q.toLowerCase()){
+    const aliasPack = await fetchAll(alias);
+    aliasPack.forEach(x=>{ x.viaAlias = true; });
+    itunes = itunes.concat(aliasPack);
   }
   const qq = await jsonpQQ(q);
 
@@ -1857,14 +2099,47 @@ async function doSearch(raw){
   qq.forEach(x => push(x, metaOnly));
 
   /* 有 30 秒试听的排前面，但给 QQ 中文曲库留 6 个位置，避免搜不到冷门/新歌 */
-  const pv = withPreview.slice(0, 16);
-  /* 只在 Apple 那边结果偏少时才用 QQ 补位，避免结果里混进不相关的翻唱 */
-  searchResults = pv.length >= 12 ? pv : pv.concat(metaOnly.slice(0, 6));
+  const norm = v => String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[\s·・,，、]/g,'');
+  /* 判断「这是歌手名而不是歌名」：至少 5 条结果来自同一艺人 */
+  const cnt = {};
+  withPreview.forEach(x=>{ const a = x.artistName || ''; if(a) cnt[a] = (cnt[a]||0) + 1; });
+  let dominant = '';
+  Object.keys(cnt).forEach(a=>{ if(cnt[a] >= 5 && cnt[a] > (cnt[dominant]||0)) dominant = a; });
+
+  const core = norm(q);
+  const tokens = q.toLowerCase().split(/[\s·・,，、]+/).map(norm).filter(t=>t && t.length >= 2);
+  const relScore = x=>{
+    const t = norm(x.trackName), al = norm(x.collectionName), ar = norm(x.artistName);
+    const rawAl = x.collectionName || '';
+    let sc = x.previewUrl ? 2 : 0;
+    if(typeof x.__rank === 'number') sc += Math.max(0, 3 - x.__rank * 0.35);   /* 尊重各平台原生排序 */
+    if(x.viaAlias) sc += 3;
+    if(core && al.indexOf(core) >= 0) sc += 3;
+    if(core && t === core) sc += 4;
+    else if(core && t.indexOf(core) >= 0) sc += 2.5;
+    if(core && ar.indexOf(core) >= 0) sc += 2;
+    if(dominant && (x.artistName || '').indexOf(dominant) >= 0) sc += 4;
+    if(core && t === core && al === core) sc -= 1.5;   /* 同名单曲页，多半是翻唱 */
+
+    if(tokens.length > 1){
+      tokens.forEach(tk=>{
+        if(al.indexOf(tk) >= 0) sc += 2;
+        else if(t.indexOf(tk) >= 0) sc += 1.5;
+      });
+    }
+    /* 原唱优先：单曲页、翻唱/伴奏版降权，正式专辑里的曲目加分 */
+    if(/-\s*single|（单曲）|\(single\)/i.test(rawAl)) sc -= 1.5;
+    if(/女版|男版|翻唱|伴奏|karaoke|伴奏版|纯音乐|inst\./i.test(x.trackName || '')) sc -= 1;
+    if(rawAl && !/single|ep/i.test(rawAl)) sc += 0.5;
+    return sc;
+  };
+  /* QQ 结果始终参与排序：中文原创音乐剧原声，Apple 基本没有 */
+  searchResults = withPreview.concat(metaOnly).sort((a,b)=>relScore(b)-relScore(a)).slice(0, 20);
 
   searching = false;
 
   if(!searchResults.length){
-    st.innerHTML = '没找到这首歌。<br>试试只搜歌名或只搜歌手，或者直接去 '
+    st.innerHTML = '没找到这首歌。<br>试试只搜歌手，或切到「专辑 · 原声带」搜剧名／专辑名；也可以直接去 '
       + '<a href="' + qqUrl(q) + '" target="_blank" rel="noopener">QQ音乐</a> 或 '
       + '<a href="' + neUrl(q) + '" target="_blank" rel="noopener">网易云</a> 搜「' + esc(q) + '」。';
     return;
@@ -1898,19 +2173,18 @@ function renderResults(){
   }).join('');
 }
 
-function shareFromSearch(i){
-  const x = searchResults[i];
-  if(!x) return;
+function pickSong(o){
+  if(!o) return;
   pendingPreview = {
-    title: x.trackName,
-    artist: x.artistName,
-    previewUrl: x.previewUrl || '',
-    artwork: (x.artworkUrl100 || '').replace('100x100bb','300x300bb'),
-    dur: x.previewUrl ? 30 : 0
+    title: o.title || '',
+    artist: o.artist || '',
+    previewUrl: o.previewUrl || '',
+    artwork: o.artwork || '',
+    dur: o.previewUrl ? 30 : 0
   };
   $('#chosenSong').innerHTML = `
     <img src="${pendingPreview.artwork}" alt="">
-    <div class="ci"><b>${esc(pendingPreview.title)}</b><span>${esc(pendingPreview.artist)} · ${x.previewUrl ? '30 秒试听版' : '外链试听版（卡片点了跳外链）'}</span></div>
+    <div class="ci"><b>${esc(pendingPreview.title)}</b><span>${esc(pendingPreview.artist)} · ${o.previewUrl ? '30 秒试听版' : '外链试听版（卡片点了跳外链）'}</span></div>
     <button class="chg" data-clear-chosen>换一首</button>`;
   $('#chosenSong').classList.add('show');
   const box = $('#qzbox'); if(box) box.style.display = 'none';
@@ -1919,6 +2193,20 @@ function shareFromSearch(i){
   go('upload');
   toast('已带入这首歌，写一句话就能投');
 }
+
+function shareFromSearch(i){
+  const x = searchResults[i];
+  if(!x) return;
+  pickSong({title:x.trackName, artist:x.artistName, previewUrl:x.previewUrl, artwork:(x.artworkUrl100 || '').replace('100x100bb','300x300bb')});
+}
+
+$('#sToggle').addEventListener('click', e=>{
+  const b = e.target.closest('[data-mode]');
+  if(!b) return;
+  setSearchMode(b.dataset.mode);
+  const v = ($('#q').value || '').trim();
+  if(v) doSearch(v);
+});
 
 $('#searchBtn').addEventListener('click', ()=>doSearch($('#q').value));
 $('#q').addEventListener('keydown', e=>{
@@ -1937,8 +2225,34 @@ document.addEventListener('click', e=>{
   }
   const sh = e.target.closest('[data-share]');
   if(sh){ shareFromSearch(+sh.dataset.share); return; }
+  const ab = e.target.closest('[data-album]');
+  if(ab){ expandAlbum(+ab.dataset.album); return; }
+  const at = e.target.closest('[data-atrack]');
+  if(at){
+    const p = at.dataset.atrack.split('|');
+    const t = (albumTrackCache[+p[0]] || [])[+p[1]];
+    if(t){
+      if(t.previewUrl) playUrl(t.previewUrl, t.title, (t.artist||'') + ' · 30 秒试听');
+      else openExternal(t.title, t.artist);
+    }
+    return;
+  }
+  const ats = e.target.closest('[data-atrackshare]');
+  if(ats){
+    const p = ats.dataset.atrackshare.split('|');
+    const t = (albumTrackCache[+p[0]] || [])[+p[1]];
+    if(t) pickSong(t);
+    return;
+  }
   const hot = e.target.closest('[data-hot]');
-  if(hot){ $('#q').value = hot.dataset.hot; doSearch(hot.dataset.hot); return; }
+  if(hot){
+    const v = hot.dataset.hot;
+    $('#q').value = v;
+    const musical = /音乐剧|原声|musical|ost|百老汇|broadway|cast|声音|专辑/i.test(v);
+    if(musical && searchMode !== 'album') setSearchMode('album');
+    doSearch(v);
+    return;
+  }
   const gt = e.target.closest('[data-goto]');
   if(gt){ go(gt.dataset.goto); return; }
   const cc = e.target.closest('[data-clear-chosen]');
