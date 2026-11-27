@@ -1338,7 +1338,7 @@ function trackCard(t, opts){
         ${t.artwork ? `<img class="cov-s" src="${t.artwork}" alt="">` : ''}
         <span class="song-name">${esc(t.title)}</span>
         ${t.src === 'local' && !(me && t.sid === me.sid) ? '<span class="lonly">原机专属</span>' : ''}
-        <span class="song-dur">${fmtDur(t.dur)}</span>
+        <span class="song-dur">${t.dur ? fmtDur(t.dur) : '外链'}</span>
       </div>
       ${opts.del ? `<div style="text-align:right;margin-top:6px"><button class="rm" data-del="${t.id}" style="border:0;background:none;color:#8C99B4;font-size:11px;cursor:pointer">删除</button></div>` : ''}
     </div>
@@ -1467,6 +1467,7 @@ async function playTrack(id){
   if(!t) return;
 
   if(t.src === 'preview'){
+    if(!t.previewUrl){ openExternal(t.title, t.artist); return; }
     if(current.url) URL.revokeObjectURL(current.url);
     current = {id:id, url:null, by:t.nick};
     audio.src = t.previewUrl;
@@ -1494,7 +1495,14 @@ async function playTrack(id){
 }
 
 /* 直接播放一个外部地址（搜索结果试听用） */
+function openExternal(title, artist){
+  const kw = ((title || '') + ' ' + (artist || '')).trim();
+  toast('这首没有 30 秒试听，帮你打开 QQ音乐');
+  try{ window.open(qqUrl(kw), '_blank', 'noopener'); }catch(e){}
+}
+
 function playUrl(url, title, by){
+  if(!url){ openExternal(title, by); return; }
   if(current.url) URL.revokeObjectURL(current.url);
   current = {id:null, url:null, by:by};
   audio.src = url;
@@ -1506,8 +1514,7 @@ function playUrl(url, title, by){
   syncPlayIcon();
 }
 function syncPlayIcon(){
-  const playing = !audio.paused && audio.src;
-  $('#pToggle').innerHTML = playing
+  const playing = !audio.paused && audio.src;  $('#pToggle').innerHTML = playing
     ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>'
     : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
 }
@@ -1620,10 +1627,10 @@ $('#submitBtn').addEventListener('click', async () => {
     sid: me.sid, owner: me.name,
     avatar: profile.avatar,
     mood: chosenMood,
-    dur: 30, size: 0, mime: 'audio/mpeg',
+    dur: pendingPreview.dur || 0, size: 0, mime: 'audio/mpeg',
     ts: Date.now(), mine: true,
     src: 'preview',
-    previewUrl: pendingPreview.previewUrl,
+    previewUrl: pendingPreview.previewUrl || '',
     artwork: pendingPreview.artwork,
     artist: pendingPreview.artist
   };
@@ -1765,6 +1772,46 @@ function jsonpSearch(q, country, limit){
   });
 }
 
+/* QQ音乐搜索：只取元数据与封面（试听直链需鉴权），补中文曲库 */
+let qqBusy = null;
+function jsonpQQ(q){
+  if(qqBusy) return qqBusy;
+  qqBusy = new Promise(resolve=>{
+    const s = document.createElement('script');
+    let done = false;
+    const timer = setTimeout(()=>{ finish([]); }, 9000);
+    function finish(list){
+      if(done) return;
+      done = true;
+      clearTimeout(timer);
+      qqBusy = null;
+      if(s.parentNode) s.parentNode.removeChild(s);
+      try{ delete window.callback; }catch(e){ window.callback = undefined; }
+      resolve(list || []);
+    }
+    /* 该接口固定回调名 callback，忽略自定义 callback 参数 */
+    window.callback = data => {
+      try{
+        const list = (data && data.data && data.data.song && data.data.song.list) || [];
+        finish(list.map(x=>({
+          trackName: String(x.songname || '').replace(/<em>|<\/em>/g,''),
+          artistName: (x.singer || []).map(v=>v.name).join('、'),
+          collectionName: x.albumname || '',
+          artworkUrl100: x.albummid ? ('https://y.gtimg.cn/music/photo_new/T002R300x300M000' + x.albummid + '.jpg') : '',
+          previewUrl: '',
+          trackViewUrl: '',
+          srcName: 'QQ音乐'
+        })).filter(x=>x.trackName));
+      }catch(e){ finish([]); }
+    };
+    s.onerror = ()=>{ finish([]); };
+    s.src = 'https://c.y.qq.com/soso/fcgi-bin/client_search_cp?w=' + encodeURIComponent(q)
+          + '&format=jsonp&callback=callback&p=1&n=16&cr=1';
+    document.body.appendChild(s);
+  });
+  return qqBusy;
+}
+
 async function doSearch(raw){
   const q = String(raw||'').trim();
   if(!q){ toast('先输入歌名或歌手'); return; }
@@ -1775,23 +1822,49 @@ async function doSearch(raw){
   st.style.display = 'block';
   st.textContent = '正在搜索「' + q + '」…';
 
-  const stores = ['tw','hk','us'];
-  const all = [];
-  const packs = await Promise.all(stores.map(c => jsonpSearch(q, c, 10)));
-  packs.forEach(list => list.forEach(x => all.push(x)));
+  /* 多源：Apple Music 四个区（有 30 秒试听）+ QQ音乐（补中文曲库） */
+  const stores = ['tw','hk','us','jp'];
+  const variants = [q];
+  const slim = q.replace(/[\s·・,，、。.!！?？'"“”‘’()（）\[\]]/g,'');
+  if(slim && slim !== q) variants.push(slim);
+
+  async function fetchAll(term){
+    const packs = await Promise.all(stores.map(c => jsonpSearch(term, c, 20)));
+    const flat = [];
+    packs.forEach(list => list.forEach(x => flat.push(x)));
+    return flat;
+  }
+
+  let itunes = await fetchAll(variants[0]);
+  if(itunes.filter(x=>x && x.previewUrl).length < 3 && variants[1]){
+    itunes = itunes.concat(await fetchAll(variants[1]));
+  }
+  const qq = await jsonpQQ(q);
 
   const seen = new Set();
-  searchResults = all.filter(x => x && x.previewUrl && x.trackName).filter(x=>{
-    const key = (x.trackName + '|' + x.artistName).toLowerCase();
-    if(seen.has(key)) return false;
+  const withPreview = [];
+  const metaOnly = [];
+
+  const push = (x, bucket) => {
+    if(!x || !x.trackName) return;
+    const key = (String(x.trackName).toLowerCase() + '|' + String(x.artistName||'').toLowerCase());
+    if(seen.has(key)) return;
     seen.add(key);
-    return true;
-  }).slice(0, 12);
+    bucket.push(x);
+  };
+
+  itunes.filter(x=>x && x.previewUrl && x.trackName).forEach(x => push(x, withPreview));
+  qq.forEach(x => push(x, metaOnly));
+
+  /* 有 30 秒试听的排前面，但给 QQ 中文曲库留 6 个位置，避免搜不到冷门/新歌 */
+  const pv = withPreview.slice(0, 16);
+  /* 只在 Apple 那边结果偏少时才用 QQ 补位，避免结果里混进不相关的翻唱 */
+  searchResults = pv.length >= 12 ? pv : pv.concat(metaOnly.slice(0, 6));
 
   searching = false;
 
   if(!searchResults.length){
-    st.innerHTML = '没找到可以试听的版本。<br>可能是网络或地区限制，直接去 '
+    st.innerHTML = '没找到这首歌。<br>试试只搜歌名或只搜歌手，或者直接去 '
       + '<a href="' + qqUrl(q) + '" target="_blank" rel="noopener">QQ音乐</a> 或 '
       + '<a href="' + neUrl(q) + '" target="_blank" rel="noopener">网易云</a> 搜「' + esc(q) + '」。';
     return;
@@ -1804,14 +1877,15 @@ function renderResults(){
   $('#results').innerHTML = searchResults.map((x,i)=>{
     const cov = (x.artworkUrl100 || '').replace('100x100bb','300x300bb');
     const kw = x.trackName + ' ' + x.artistName;
+    const hasPrev = !!x.previewUrl;
     return `
     <div class="sres">
       <img class="cov" src="${cov}" alt="">
       <div class="sinfo">
         <b>${esc(x.trackName)}</b>
-        <p>${esc(x.artistName)}${x.collectionName ? ' · ' + esc(x.collectionName) : ''}</p>
+        <p>${esc(x.artistName)}${x.collectionName ? ' · ' + esc(x.collectionName) : ''}${x.srcName ? ' · ' + esc(x.srcName) : ''}</p>
         <div class="sacts">
-          <button class="mini dark" data-aud="${i}">▶ 试听 30 秒</button>
+          <button class="mini dark" data-aud="${i}">${hasPrev ? '▶ 试听 30 秒' : '↗ 去外链试听'}</button>
           <button class="mini" data-share="${i}">＋ 分享这首</button>
         </div>
         <div class="plinks">完整收听：
@@ -1830,13 +1904,13 @@ function shareFromSearch(i){
   pendingPreview = {
     title: x.trackName,
     artist: x.artistName,
-    previewUrl: x.previewUrl,
+    previewUrl: x.previewUrl || '',
     artwork: (x.artworkUrl100 || '').replace('100x100bb','300x300bb'),
-    dur: 30
+    dur: x.previewUrl ? 30 : 0
   };
   $('#chosenSong').innerHTML = `
     <img src="${pendingPreview.artwork}" alt="">
-    <div class="ci"><b>${esc(pendingPreview.title)}</b><span>${esc(pendingPreview.artist)} · 30 秒试听版</span></div>
+    <div class="ci"><b>${esc(pendingPreview.title)}</b><span>${esc(pendingPreview.artist)} · ${x.previewUrl ? '30 秒试听版' : '外链试听版（卡片点了跳外链）'}</span></div>
     <button class="chg" data-clear-chosen>换一首</button>`;
   $('#chosenSong').classList.add('show');
   const box = $('#qzbox'); if(box) box.style.display = 'none';
@@ -1855,7 +1929,10 @@ document.addEventListener('click', e=>{
   const aud = e.target.closest('[data-aud]');
   if(aud){
     const x = searchResults[+aud.dataset.aud];
-    if(x) playUrl(x.previewUrl, x.trackName, x.artistName + ' · 30 秒试听');
+    if(x){
+      if(x.previewUrl) playUrl(x.previewUrl, x.trackName, x.artistName + ' · 30 秒试听');
+      else openExternal(x.trackName, x.artistName);
+    }
     return;
   }
   const sh = e.target.closest('[data-share]');
