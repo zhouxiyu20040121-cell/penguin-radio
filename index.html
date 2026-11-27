@@ -908,7 +908,6 @@ body.gated{overflow:hidden}
       <div class="gmsg" id="gateMsg"></div>
       <button class="btn primary" id="loginBtn">进入我的点唱台</button>
     </div>
-    <div class="gquick" id="gateQuick"></div>
     <p class="gfoot">账号存在云端：任何设备输入学号 + 名字都能回到你名下，投稿会共享给所有人。</p>
   </div>
 </div>
@@ -1900,14 +1899,9 @@ function hideGate(){
   document.body.classList.remove('gated');
 }
 function renderGateQuick(){
+  /* 已关闭：登录页不再显示本机其他账号入口 */
   const el = $('#gateQuick');
-  const list = Object.values(accounts).sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,8);
-  if(!list.length){ el.innerHTML = ''; return; }
-  el.innerHTML = '<div class="qhint">这台设备上还有这些账号 · 点一下直接进</div><div class="gchips">'
-    + list.map(a => {
-        const av = AV_BY_KEY[a.avatar] || AVATARS[0];
-        return `<button class="gchip" data-acct="${esc(a.sid)}"><img src="${av.url}" alt=""><span>${esc(a.name)}</span><em>${esc(a.sid)}</em></button>`;
-      }).join('') + '</div>';
+  if(el) el.innerHTML = '';
 }
 function afterLogin(r){
   hideGate();
