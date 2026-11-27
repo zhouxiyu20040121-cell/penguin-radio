@@ -846,7 +846,8 @@ body.gated{overflow:hidden}
 
       <div class="section-title"><h2>账号与数据</h2><span>本机缓存</span></div>
       <button class="btn ghost" id="switchBtn" style="margin-bottom:10px">切换账号 / 退出登录</button>
-      <button class="btn ghost" id="clearBtn">清空共享曲库（所有人）</button>
+      <button class="btn ghost" id="clearBtn">清空我的曲库（只删自己的）</button>
+      <button class="btn ghost" id="clearAllBtn" style="display:none;margin-top:10px;color:#FF6B81;border-color:rgba(255,107,129,.5)">清空所有人曲库（管理员）</button>
     </section>
   </main>
 
@@ -1209,6 +1210,22 @@ async function cloudClear(){
   const keys = await cloudKeys('track:');
   for(const k of keys){ try{ await cloudDel(k); }catch(e){} }
 }
+/* 只清自己的投稿 */
+function myTracks(){
+  const sid = sessionSid();
+  if(!sid) return [];
+  return tracks.filter(t => t.sid === sid);
+}
+async function cloudClearMine(list){
+  for(const t of list){ addTomb(t.id); try{ await cloudDel('track:' + t.id); }catch(e){} }
+}
+/* 管理员：学号 88 且姓名为 周夕喻 */
+function isAdmin(){
+  if(!me) return false;
+  const sid = cleanSid(me.sid);
+  const nm = String(me.name || me.nick || '').trim();
+  return sid === '88' && nm === '周夕喻';
+}
 /* ---------- 账号 ---------- */
 function sessionSid(){ try{ return localStorage.getItem(LS_SESSION) || ''; }catch(e){ return ''; } }
 function setSession(sid){
@@ -1390,6 +1407,8 @@ function renderMe(){
     </div>`).join('');
   const mine = tracks.filter(t=>me && t.sid === me.sid);
   $('#mineSub').textContent = mine.length ? mine.length + ' 首' : '';
+  const ab = $('#clearAllBtn');
+  if(ab) ab.style.display = isAdmin() ? '' : 'none';
   $('#mineList').innerHTML = mine.length
     ? mine.slice().sort((a,b)=>b.ts-a.ts).map(t=>trackCard(t,{del:true})).join('')
     : `<div class="empty" style="padding:16px 0;font-size:12.5px">还没有投过歌</div>`;
@@ -1682,15 +1701,31 @@ $('#drawAgain').addEventListener('click', doDraw);
    清空
    ============================================================ */
 $('#clearBtn').addEventListener('click', async ()=>{
+  const mine = myTracks();
+  if(!mine.length){ toast('你还没有投过歌'); return; }
+  if(!confirm('确定清空你自己的 ' + mine.length + ' 首投稿吗？只删你投的歌，别人的不受影响。')) return;
+  try{ await cloudClearMine(mine); }catch(e){ toast('云端暂时连不上，先清了这台设备'); }
+  for(const t of mine) await delAudio(t.id);
+  const ids = new Set(mine.map(t=>t.id));
+  tracks = tracks.filter(t => !ids.has(t.id)); saveTracks();
+  $('#pClose').click();
+  $('#result').classList.remove('show');
+  renderAll();
+  toast('已清空我的 ' + mine.length + ' 首');
+});
+
+/* 管理员：清空所有人 */
+$('#clearAllBtn').addEventListener('click', async ()=>{
+  if(!isAdmin()){ toast('只有管理员能清空所有人的曲库'); return; }
   if(!tracks.length){ toast('曲库已经是空的'); return; }
-  if(!confirm('确定清空共享曲库吗？所有人看到的投稿都会一起删掉，本机音频也会删掉。')) return;
+  if(!confirm('确定清空所有人的曲库吗？全部 ' + tracks.length + ' 首都会被删掉，且无法恢复。')) return;
   try{ await cloudClear(); }catch(e){ toast('云端暂时连不上，只清了这台设备'); }
   for(const t of tracks) await delAudio(t.id);
   tracks = []; saveTracks();
   $('#pClose').click();
   $('#result').classList.remove('show');
   renderAll();
-  toast('曲库已清空');
+  toast('全部曲库已清空');
 });
 
 /* ============================================================
