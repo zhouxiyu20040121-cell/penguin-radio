@@ -1092,52 +1092,23 @@ function saveProfile(){
 /* ============================================================
    云端：跨设备共享的账号与曲库
    ============================================================ */
+/* 总库方案：一个公共文档，所有人读写同一份。
+   - 主：restful-api.dev 文档（可跨域、免注册）
+   - 备：kvdb 单键 library:v1（原后端，服务恢复后自动镜像，也能自愈读回）
+   - 本机另存影子副本，断网也能看到总库最近一次的样子 */
 const CLOUD_BASE = 'https://kvdb.io/3E4wS3iPzm5UMY3dBzdZWo';
-let cloudOk = false, cloudTried = false, syncStart = 0;          /* 是否连上云端 */
-let cloudAt = 0;              /* 上次成功同步时间 */
+const REMOTE_DOC = 'https://api.restful-api.dev/objects/ff808181a09d98f701a21baadd6f5f3c';
+const KV_LIB = 'library:v1';
+const LS_SHADOW = 'penguin.radio.cloudshadow.v1';
+let cloudOk = false, cloudTried = false, syncStart = 0;
+let cloudAt = 0;
+let cloudCount = 0;
+let cloudSharers = 0;
+let lastCloudErr = '';
 let syncing = false;
 
-async function cloudReq(path, init, opts){
-  let lastErr = null;
-  for(let i = 0; i < 3; i++){
-    const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timer = ctl ? setTimeout(() => { try{ ctl.abort(); }catch(e){} }, 9000) : null;
-    try{
-      const opt = Object.assign({}, init || {});
-      if(ctl) opt.signal = ctl.signal;
-      const res = await fetch(CLOUD_BASE + path, opt);
-      if(timer) clearTimeout(timer);
-      if(opts && opts.nullOn404 && res.status === 404) return null;
-      if(!res.ok) throw new Error('HTTP ' + res.status);
-      return res;
-    }catch(e){
-      if(timer) clearTimeout(timer);
-      lastErr = e;
-      await new Promise(r => setTimeout(r, 400 * (i + 1)));
-    }
-  }
-  throw lastErr || new Error('cloud fail');
-}
-async function cloudPut(key, obj){
-  await cloudReq('/' + key, {
-    method:'PUT',
-    headers:{'Content-Type':'text/plain;charset=utf-8'},
-    body: JSON.stringify(obj)
-  });
-}
-async function cloudGet(key){
-  const r = await cloudReq('/' + key, null, {nullOn404:true});
-  if(!r) return null;
-  const t = (await r.text()).trim();
-  if(!t) return null;
-  try{ return JSON.parse(t); }catch(e){ return null; }
-}
-async function cloudDel(key){ await cloudReq('/' + key, {method:'DELETE'}); }
-async function cloudKeys(prefix){
-  const r = await cloudReq('/?prefix=' + encodeURIComponent(prefix));
-  const t = await r.text();
-  return t.split('\n').map(x=>x.trim()).filter(k => k.indexOf(prefix) === 0);
-}
+function nonce(){ return Date.now() + '-' + Math.random().toString(36).slice(2,8); }
+
 function slimTrack(t){
   return {id:t.id, title:t.title, msg:t.msg, nick:t.nick, sid:t.sid, owner:t.owner,
           avatar:t.avatar, mood:t.mood, dur:t.dur, size:t.size, mime:t.mime, ts:t.ts,
@@ -1146,77 +1117,249 @@ function slimTrack(t){
 function slimAccount(a){
   return {sid:a.sid, name:a.name, nick:a.nick, avatar:a.avatar, ts:a.ts};
 }
-async function cloudPushTrack(t){
-  try{ await cloudPut('track:' + t.id, slimTrack(t)); return true; }
-  catch(e){ return false; }
+
+function normDoc(d){
+  d = d || {};
+  return {accounts: d.accounts || {}, tracks: d.tracks || {}, meta: d.meta || {}};
 }
-/* 拉取：账号名册 + 全部投稿 */
-async function mapLimit(list, limit, fn){
-  const out = new Array(list.length);
-  let i = 0;
-  async function worker(){
-    while(i < list.length){
-      const idx = i++;
-      try{ out[idx] = await fn(list[idx]); }catch(e){ out[idx] = null; }
-    }
-  }
-  const ws = [];
-  for(let k = 0; k < Math.min(limit, list.length); k++) ws.push(worker());
-  await Promise.all(ws);
+
+async function docFetch(){
+  const r = await fetch(REMOTE_DOC + '?_=' + nonce(), {cache:'no-store'});
+  if(!r.ok){ let t=''; try{ t=(await r.text()).slice(0,160); }catch(e){} throw new Error('doc ' + r.status + ' ' + t); }
+  const j = await r.json();
+  return normDoc(j && j.data);
+}
+
+async function docSave(doc){
+  const r = await fetch(REMOTE_DOC + '?_=' + nonce(), {
+    method:'PUT',
+    cache:'no-store',
+    headers:{'Content-Type':'application/json', 'Cache-Control':'no-cache'},
+    body: JSON.stringify({name:'penguin-radio-shared', data:{v:1, accounts:doc.accounts, tracks:doc.tracks, meta:doc.meta || {}}})
+  });
+  if(!r.ok){ let t=''; try{ t=(await r.text()).slice(0,160); }catch(e){} throw new Error('doc put ' + r.status + ' ' + t); }
+}
+
+/* 备用：把整份总库写进 kvdb 一个键（服务恢复后就有镜像） */
+async function kvLibPut(doc){
+  try{
+    await fetch(CLOUD_BASE + '/' + KV_LIB, {
+      method:'PUT',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({v:1, accounts:doc.accounts, tracks:doc.tracks, meta:doc.meta || {}})
+    });
+  }catch(e){}
+}
+async function kvLibGet(){
+  try{
+    const r = await fetch(CLOUD_BASE + '/' + KV_LIB + '?_=' + nonce(), {cache:'no-store'});
+    if(!r.ok) return null;
+    const t = (await r.text()).trim();
+    if(!t || t.charAt(0) !== '{') return null;
+    return normDoc(JSON.parse(t));
+  }catch(e){ return null; }
+}
+
+function mergeDoc(a, b){
+  const out = normDoc(a);
+  if(!b) return out;
+  Object.keys(b.accounts||{}).forEach(k=>{ if(!out.accounts[k]) out.accounts[k] = b.accounts[k]; });
+  Object.keys(b.tracks||{}).forEach(k=>{
+    const x = b.tracks[k];
+    if(!out.tracks[k] || (x.ts||0) > (out.tracks[k].ts||0)) out.tracks[k] = x;
+  });
+  const wa = Math.max((a && a.meta && a.meta.wipeAt) || 0, (b.meta && b.meta.wipeAt) || 0);
+  out.meta = Object.assign({}, out.meta, {wipeAt: wa});
   return out;
 }
 
-async function cloudPull(){
-  /* 防卡死：上一轮超过 25 秒还没结束就直接重来 */
-  if(syncing && Date.now() - syncStart < 25000) return;
+/* 老 kvdb 里的历史数据，迁移进总库（只做一次） */
+async function importLegacy(doc){
+  async function keys(prefix){
+    try{
+      const r = await fetch(CLOUD_BASE + '/?prefix=' + encodeURIComponent(prefix), {cache:'no-store'});
+      if(!r.ok) return [];
+      return (await r.text()).split('\n').map(x=>x.trim()).filter(k=>k.indexOf(prefix)===0);
+    }catch(e){ return []; }
+  }
+  const ak = await keys('acct:'), tk = await keys('track:');
+  const accs = await Promise.all(ak.map(async k=>{
+    try{ const r = await fetch(CLOUD_BASE + '/' + k, {cache:'no-store'}); return await r.json(); }catch(e){ return null; }
+  }));
+  const trks = await Promise.all(tk.map(async k=>{
+    try{ const r = await fetch(CLOUD_BASE + '/' + k, {cache:'no-store'}); return await r.json(); }catch(e){ return null; }
+  }));
+  accs.forEach(a=>{ if(a && a.sid) doc.accounts[a.sid] = a; });
+  trks.forEach(t=>{ if(t && t.id) doc.tracks[t.id] = t; });
+  if(Object.keys(doc.accounts).length || Object.keys(doc.tracks).length) await docSave(doc);
+  return doc;
+}
+
+/* 读总库：主文档 + 备用镜像，取并集 */
+async function cloudDoc(){
+  let doc = null, err = null;
+  try{ doc = await docFetch(); }catch(e){ err = e; }
+  const mirror = await kvLibGet();
+  if(doc && mirror) return mergeDoc(doc, mirror);
+  if(doc) return doc;
+  if(mirror) return mirror;
+  throw err || new Error('cloud unreachable');
+}
+
+/* 所有写操作排队串行，避免同时 PUT 互相覆盖、也避免被限流 */
+let docQueue = Promise.resolve();
+function docUpdate(mut, tries){
+  const run = () => _docUpdate(mut, tries);
+  const p = docQueue.then(run, run);
+  docQueue = p.catch(()=>{});
+  return p;
+}
+async function _docUpdate(mut, tries){
+  tries = tries || 4;
+  let lastErr = null;
+  for(let i=0;i<tries;i++){
+    try{
+      const doc = await cloudDoc();
+      mut(doc);
+      await docSave(doc);
+      kvLibPut(doc);
+      return doc;
+    }catch(e){
+      lastErr = e;
+      await new Promise(r=>setTimeout(r, 350 * (i + 1)));
+    }
+  }
+  throw lastErr || new Error('doc update failed');
+}
+
+/* ===== 兼容旧接口：cloudPut / cloudGet / cloudDel / cloudKeys ===== */
+async function cloudPut(key, obj){
+  if(key.indexOf('acct:') === 0){
+    const sid = key.slice(5);
+    await docUpdate(d=>{ d.accounts[sid] = obj; });
+    return;
+  }
+  if(key.indexOf('track:') === 0){
+    const id = key.slice(6);
+    await docUpdate(d=>{ d.tracks[id] = obj; });
+    return;
+  }
+  throw new Error('unknown key ' + key);
+}
+async function cloudGet(key){
+  const doc = await cloudDoc();
+  if(key.indexOf('acct:') === 0) return doc.accounts[key.slice(5)] || null;
+  if(key.indexOf('track:') === 0) return doc.tracks[key.slice(6)] || null;
+  return null;
+}
+async function cloudDel(key){
+  if(key.indexOf('track:') === 0){
+    const id = key.slice(6);
+    await docUpdate(d=>{ delete d.tracks[id]; });
+  }
+}
+async function cloudKeys(prefix){
+  const doc = await cloudDoc();
+  if(prefix.indexOf('acct:') === 0) return Object.keys(doc.accounts).map(sid=>'acct:' + sid);
+  if(prefix.indexOf('track:') === 0) return Object.keys(doc.tracks).map(id=>'track:' + id);
+  return [];
+}
+
+async function cloudPushTrack(t){
+  try{
+    await docUpdate(d=>{ d.tracks[t.id] = slimTrack(t); }, 6);
+    return true;
+  }catch(e){ lastCloudErr = String(e && e.message || e); return false; }
+}
+
+let pullTask = null;
+function cloudPull(){
+  /* 同一时刻只跑一次拉取；并发的调用者共用同一个结果 */
+  if(pullTask) return pullTask;
+  pullTask = _cloudPull().catch(()=>{}).then(()=>{ pullTask = null; });
+  return pullTask;
+}
+async function _cloudPull(){
   syncing = true;
   syncStart = Date.now();
   let changed = false;
   try{
-    /* 上次没传上去的，先补传 */
-    for(const t of tracks){
-      if(me && t.sid === me.sid && t.synced !== true){
-        try{ await cloudPut('track:' + t.id, slimTrack(t)); t.synced = true; changed = true; }
-        catch(e){}
-      }
-    }
-    const aKeys = await cloudKeys('acct:');
-    const missAcc = aKeys.filter(k => !accounts[k.slice(5)]);
-    if(missAcc.length){
-      const got = await mapLimit(missAcc, 5, k => cloudGet(k));
-      got.forEach((v, idx) => {
-        if(v && v.sid && !accounts[missAcc[idx].slice(5)]){ accounts[missAcc[idx].slice(5)] = v; changed = true; }
-      });
-      if(changed) saveAccounts();
+    /* 读总库 */
+    let doc = await cloudDoc();
+
+    /* 总库还空着：把老 kvdb 里的账号/投稿迁过来 */
+    if(!Object.keys(doc.tracks).length && !Object.keys(doc.accounts).length){
+      try{ doc = await importLegacy(doc); }catch(e){}
     }
 
-    const tKeys = await cloudKeys('track:');
-    const remote = new Set(tKeys.map(k => k.slice(6)));
-    const missIds = [];
-    for(const id of remote){ if(!tracks.some(t => t.id === id)) missIds.push(id); }
-    if(missIds.length){
-      const got = await mapLimit(missIds, 5, id => cloudGet('track:' + id));
-      const dead = tombIds();
-      got.forEach(v => { if(v && v.id && !dead.has(v.id)){ tracks.push(v); changed = true; } });
+    /* 本机还没传成功的，补传进总库 */
+    const unsynced = tracks.filter(t => me && t.sid === me.sid && t.synced !== true);
+    if(unsynced.length){
+      try{
+        await docUpdate(d=>{ unsynced.forEach(t=>{ d.tracks[t.id] = slimTrack(t); }); });
+        unsynced.forEach(t=>{ t.synced = true; });
+        changed = true;
+        doc = await cloudDoc();
+      }catch(e){}
     }
-    /* 云端已删除的，本机跟着删；刚投 90 秒内的先留着（可能还在上传） */
+
+    /* 影子副本：断网时还能看到总库最近的样子 */
+    try{ localStorage.setItem(LS_SHADOW, JSON.stringify(doc)); }catch(e){}
+    cloudCount = Object.keys(doc.tracks).length;
+    cloudSharers = new Set(Object.values(doc.tracks).map(x=>x && x.sid).filter(Boolean)).size;
+
+    /* 账号合并 */
+    Object.keys(doc.accounts).forEach(sid=>{
+      const a = doc.accounts[sid];
+      if(a && a.sid && !accounts[sid]){ accounts[sid] = a; changed = true; }
+    });
+    if(changed) saveAccounts();
+
+    /* 投稿合并：别人投的也进来 */
+    const dead = tombIds();
+    const wipeAt = (doc.meta && doc.meta.wipeAt) || 0;
+    const docEmpty = !Object.keys(doc.tracks).length;
+    Object.keys(doc.tracks).forEach(id=>{
+      if(dead.has(id)) return;
+      const x = doc.tracks[id];
+      if(x && (x.ts || 0) <= wipeAt) return;
+      if(!tracks.some(t=>t.id===id)){ tracks.push(x); changed = true; }
+      else { const loc = tracks.find(t=>t.id===id); if(loc) loc.synced = true; }
+    });
+
+    /* 总库里没有的，本机删掉（保住自己还没来得及传的） */
     const alive = [];
-    const deadSet = tombIds();
     for(const t of tracks){
-      if(remote.has(t.id) && !deadSet.has(t.id)){ t.synced = true; alive.push(t); continue; }
+      if(dead.has(t.id)){ delAudio(t.id); changed = true; continue; }
+      if((t.ts || 0) <= wipeAt){ addTomb(t.id); delAudio(t.id); changed = true; continue; }
+      const remote = doc.tracks[t.id];
+      if(remote && (remote.ts || 0) > wipeAt){ t.synced = true; alive.push(t); continue; }
+      /* 总库突然空了（服务重置）：别删本地，标成未同步，下一轮自己补传 */
+      if(docEmpty){ t.synced = false; alive.push(t); continue; }
       if(me && t.sid === me.sid && t.synced !== true){ alive.push(t); continue; }
-      changed = true;
-      delAudio(t.id);
+      delAudio(t.id); changed = true;
     }
-    if(alive.length !== tracks.length || changed){
-      tracks = alive;
-      saveTracks();
-    }
-    cloudOk = true; cloudTried = true;
-    cloudAt = Date.now();
-    renderCloud();
-    renderAll();
+    if(alive.length !== tracks.length || changed){ tracks = alive; saveTracks(); }
+
+    cloudOk = true; cloudTried = true; cloudAt = Date.now();
+    renderCloud(); renderAll();
   }catch(e){
+    lastCloudErr = String(e && e.message || e);
+    /* 连不上：先用影子副本撑住，别让自己的曲库看起来是空的 */
+    try{
+      const shadow = JSON.parse(localStorage.getItem(LS_SHADOW) || 'null');
+      if(shadow){
+        const dead = tombIds();
+        Object.keys(shadow.tracks || {}).forEach(id=>{
+          if(!dead.has(id) && !tracks.some(t=>t.id===id)) tracks.push(shadow.tracks[id]);
+        });
+        Object.keys(shadow.accounts || {}).forEach(sid=>{
+          if(shadow.accounts[sid] && !accounts[sid]) accounts[sid] = shadow.accounts[sid];
+        });
+        cloudCount = Object.keys(shadow.tracks || {}).length;
+        saveAccounts(); saveTracks(); renderAll();
+      }
+    }catch(e2){}
     cloudOk = false; cloudTried = true;
     renderCloud();
   }finally{
@@ -1224,9 +1367,9 @@ async function cloudPull(){
   }
 }
 async function cloudClear(){
+  const at = Date.now();
   for(const t of tracks) addTomb(t.id);
-  const keys = await cloudKeys('track:');
-  for(const k of keys){ try{ await cloudDel(k); }catch(e){} }
+  await docUpdate(d=>{ d.meta = Object.assign({}, d.meta, {wipeAt: at}); d.tracks = {}; }, 6);
 }
 /* 只清自己的投稿 */
 function myTracks(){
@@ -1235,7 +1378,11 @@ function myTracks(){
   return tracks.filter(t => t.sid === sid);
 }
 async function cloudClearMine(list){
-  for(const t of list){ addTomb(t.id); try{ await cloudDel('track:' + t.id); }catch(e){} }
+  const ids = list.map(t=>t.id);
+  ids.forEach(id=>addTomb(id));
+  try{
+    await docUpdate(d=>{ ids.forEach(id=>{ delete d.tracks[id]; }); });
+  }catch(e){}
 }
 /* 管理员：学号 88 且姓名为 周夕喻 */
 function isAdmin(){
@@ -1463,8 +1610,8 @@ function renderCloud(){
     sub.textContent = '拿你学号去云端找账号和投稿';
     dot.className = 'cdot';
   } else if(cloudOk){
-    m.textContent = '已连接云端';
-    sub.textContent = cloudAt ? ('上次同步 ' + relTime(cloudAt)) : '正在同步…';
+    m.textContent = '总库已连接' + (cloudCount ? ' · ' + cloudCount + ' 首' : '') + (cloudSharers ? ' · ' + cloudSharers + ' 人' : '');
+    sub.textContent = cloudAt ? ('上次同步 ' + relTime(cloudAt) + ' · 大家投的歌都在这里') : '正在同步…';
     dot.className = 'cdot ok';
   } else {
     m.textContent = '云端暂时连不上';
@@ -1655,13 +1802,16 @@ $('#submitBtn').addEventListener('click', async () => {
   };
 
   tracks.push(rec); saveTracks();
-  const pushed = await cloudPushTrack(rec);
-  rec.synced = pushed;
-  if(pushed) saveTracks();
   resetForm();
   renderAll();
-  toast(pushed ? ('投好了，云端收到第 ' + tracks.length + ' 首') : '投好了，先存本机，联网后自动补传');
+  toast('投好了，正在送进共享曲库…');
   go('home');
+  /* 云端写入放后台：网慢也不卡表单，失败会在下一轮同步补传 */
+  cloudPushTrack(rec).then(ok=>{
+    rec.synced = ok;
+    saveTracks();
+    if(ok){ cloudPull(); }
+  });
 });
 
 /* ============================================================
