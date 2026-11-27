@@ -1336,7 +1336,8 @@ async function _cloudPull(){
       if(remote && (remote.ts || 0) > wipeAt){ t.synced = true; alive.push(t); continue; }
       /* 总库突然空了（服务重置）：别删本地，标成未同步，下一轮自己补传 */
       if(docEmpty){ t.synced = false; alive.push(t); continue; }
-      if(me && t.sid === me.sid && t.synced !== true){ alive.push(t); continue; }
+      /* 自己的歌云端没有：不管旧标记如何，都先留着并重新上传（迁移期最稳） */
+      if(me && t.sid === me.sid){ t.synced = false; alive.push(t); continue; }
       delAudio(t.id); changed = true;
     }
     if(alive.length !== tracks.length || changed){ tracks = alive; saveTracks(); }
