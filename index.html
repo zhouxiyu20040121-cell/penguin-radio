@@ -1114,6 +1114,15 @@ let lastCloudErr = '';
 let syncing = false;
 
 const sleep = ms => new Promise(r=>setTimeout(r, ms));
+/* 带超时的 fetch：坏窗口里挂住的连接会被中止，交给重试 */
+async function fetchTO(url, opts, ms){
+  ms = ms || 10000;
+  const ctrl = new AbortController();
+  const timer = setTimeout(()=>ctrl.abort(), ms);
+  try{
+    return await fetch(url, Object.assign({}, opts, {signal: ctrl.signal}));
+  }finally{ clearTimeout(timer); }
+}
 function nonce(){ return Date.now() + '-' + Math.random().toString(36).slice(2,8); }
 
 function slimTrack(t){
@@ -1137,8 +1146,8 @@ async function apiReq(path, opts, tries){
   for(let i=0;i<tries;i++){
     try{
       const sep = path.indexOf('?') >= 0 ? '&' : '?';
-      const r = await fetch(API_BASE + path + sep + '_=' + nonce(),
-        Object.assign({cache:'no-store'}, opts));
+      const r = await fetchTO(API_BASE + path + sep + '_=' + nonce(),
+        Object.assign({cache:'no-store'}, opts), 10000);
       if(!r.ok) throw new Error('http ' + r.status);
       const ct = r.headers.get('content-type') || '';
       if(ct.indexOf('json') >= 0) return await r.json();
@@ -1253,16 +1262,16 @@ async function itemDelete(objId){
 /* ===== kvdb 镜像与合并（旧后端兜底） ===== */
 async function kvLibPut(doc){
   try{
-    await fetch(CLOUD_BASE + '/' + KV_LIB, {
+    await fetchTO(CLOUD_BASE + '/' + KV_LIB, {
       method:'PUT',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
       body: JSON.stringify({v:1, accounts:doc.accounts, tracks:doc.tracks, meta:doc.meta || {}})
-    });
+    }, 8000);
   }catch(e){}
 }
 async function kvLibGet(){
   try{
-    const r = await fetch(CLOUD_BASE + '/' + KV_LIB + '?_=' + nonce(), {cache:'no-store'});
+    const r = await fetchTO(CLOUD_BASE + '/' + KV_LIB + '?_=' + nonce(), {cache:'no-store'}, 8000);
     if(!r.ok) return null;
     const t = (await r.text()).trim();
     if(!t || t.charAt(0) !== '{') return null;
@@ -1297,17 +1306,17 @@ function purgeWiped(doc){
 async function importLegacy(doc){
   async function keys(prefix){
     try{
-      const r = await fetch(CLOUD_BASE + '/?prefix=' + encodeURIComponent(prefix), {cache:'no-store'});
+      const r = await fetchTO(CLOUD_BASE + '/?prefix=' + encodeURIComponent(prefix), {cache:'no-store'}, 8000);
       if(!r.ok) return [];
       return (await r.text()).split('\n').map(x=>x.trim()).filter(k=>k.indexOf(prefix)===0);
     }catch(e){ return []; }
   }
   const ak = await keys('acct:'), tk = await keys('track:');
   const accs = await Promise.all(ak.map(async k=>{
-    try{ const r = await fetch(CLOUD_BASE + '/' + k, {cache:'no-store'}); return await r.json(); }catch(e){ return null; }
+    try{ const r = await fetchTO(CLOUD_BASE + '/' + k, {cache:'no-store'}, 8000); return await r.json(); }catch(e){ return null; }
   }));
   const trks = await Promise.all(tk.map(async k=>{
-    try{ const r = await fetch(CLOUD_BASE + '/' + k, {cache:'no-store'}); return await r.json(); }catch(e){ return null; }
+    try{ const r = await fetchTO(CLOUD_BASE + '/' + k, {cache:'no-store'}, 8000); return await r.json(); }catch(e){ return null; }
   }));
   accs.forEach(a=>{ if(a && a.sid) doc.accounts[a.sid] = a; });
   trks.forEach(t=>{ if(t && t.id) doc.tracks[t.id] = t; });
@@ -1493,17 +1502,17 @@ const NTFY_KIND = 'penguin-radio-event';
 async function ntfyPublish(events){
   if(!events || !events.length) return;
   try{
-    await Promise.all(events.map(ev=>fetch(NTFY_BASE + '/' + NTFY_TOPIC, {
+    await Promise.all(events.map(ev=>fetchTO(NTFY_BASE + '/' + NTFY_TOPIC, {
       method:'POST',
       headers:{'Content-Type':'application/json', 'Cache-Control':'max-age=259200'},
       body: JSON.stringify(Object.assign({kind:NTFY_KIND, at:Date.now()}, ev))
-    })));
+    }, 8000)));
   }catch(e){}
 }
 
 async function ntfyPoll(){
   try{
-    const r = await fetch(NTFY_BASE + '/' + NTFY_TOPIC + '/json?poll=1', {cache:'no-store'});
+    const r = await fetchTO(NTFY_BASE + '/' + NTFY_TOPIC + '/json?poll=1', {cache:'no-store'}, 8000);
     if(!r.ok) return [];
     const lines = (await r.text()).split('\n').map(x=>x.trim()).filter(Boolean);
     const out = [];
